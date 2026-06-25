@@ -1,18 +1,18 @@
 # Portal de Chamados Engenharia
 
-Fundacao tecnica inicial do projeto, organizada em `backend/` e `frontend/`.
+Base inicial do projeto organizada em `backend/` e `frontend/`, com fundacao web na FASE 1 e persistencia preparada na FASE 2.
 
-## Escopo desta fase
+## Escopo atual
 
-- Backend com FastAPI, configuracao por ambiente e health check.
-- Frontend com React, TypeScript, Vite e layout inicial.
-- Arquivos de base na raiz para onboarding e configuracao local.
+- Backend com FastAPI, SQLAlchemy, Alembic e migration inicial.
+- Frontend com React, TypeScript, Vite e layout base.
+- Arquivos de configuracao local para ambiente e banco.
 
 ## Estrutura
 
-- `backend/`: aplicacao FastAPI, testes e dependencias Python.
+- `backend/`: API, models SQLAlchemy, migrations e testes.
 - `frontend/`: aplicacao React com Vite.
-- `.env.example`: variaveis iniciais do ambiente.
+- `.env.example`: variaveis iniciais de ambiente, incluindo `DATABASE_URL`.
 
 ## Comandos principais
 
@@ -22,6 +22,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+alembic upgrade head
 pytest
 ```
 

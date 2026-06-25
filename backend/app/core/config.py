@@ -1,29 +1,24 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
 from functools import lru_cache
-import os
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def _as_bool(value: str | None, default: bool = False) -> bool:
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+class Settings(BaseSettings):
+    app_name: str = "Portal de Chamados Engenharia API"
+    app_env: str = "development"
+    app_debug: bool = False
+    api_prefix: str = ""
+    database_url: str = (
+        "postgresql+psycopg://postgres:postgres@localhost:5432/helpdesk_engenharia"
+    )
 
-
-@dataclass(frozen=True)
-class Settings:
-    app_name: str
-    app_env: str
-    app_debug: bool
-    api_prefix: str
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings(
-        app_name=os.getenv("APP_NAME", "Portal de Chamados Engenharia API"),
-        app_env=os.getenv("APP_ENV", "development"),
-        app_debug=_as_bool(os.getenv("APP_DEBUG"), default=False),
-        api_prefix=os.getenv("API_PREFIX", ""),
-    )
+    return Settings()
