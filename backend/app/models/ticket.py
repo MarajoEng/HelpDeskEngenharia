@@ -20,6 +20,8 @@ class Ticket(TimestampMixin, Base):
         Index("ix_tickets_closed_at", "closed_at"),
         Index("ix_tickets_sla_due_at", "sla_due_at"),
         Index("ix_tickets_requires_approval", "requires_approval"),
+        Index("ix_tickets_supplier_id", "supplier_id"),
+        Index("ix_tickets_expected_resolution_at", "expected_resolution_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -77,6 +79,8 @@ class Ticket(TimestampMixin, Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expected_resolution_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"))
 
     unit: Mapped["Unit"] = relationship(back_populates="tickets")
     opened_by_user: Mapped["User"] = relationship(
@@ -87,6 +91,7 @@ class Ticket(TimestampMixin, Base):
         back_populates="assigned_tickets",
         foreign_keys=[assigned_to_user_id],
     )
+    supplier: Mapped["Supplier | None"] = relationship(back_populates="tickets")
     history_entries: Mapped[list["TicketHistory"]] = relationship(
         back_populates="ticket",
         cascade="all, delete-orphan",

@@ -7,6 +7,8 @@ import type {
   TicketDetail,
   TicketFilters,
   TicketListResponse,
+  TicketProgressUpdatePayload,
+  TicketStartExecutionPayload,
   TicketTriagePayload,
 } from "../types/ticket";
 import type { UserFilters, UserListResponse } from "../types/user";
@@ -83,6 +85,22 @@ export function requestTicketApproval(token: string, ticketId: number, payload: 
 
 export function decideTicketApproval(token: string, ticketId: number, payload: TicketApprovalDecisionPayload) {
   return requestJson<TicketDetail>(`/tickets/${ticketId}/approval-decision`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function startTicketExecution(token: string, ticketId: number, payload: TicketStartExecutionPayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/start-execution`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateTicketProgress(token: string, ticketId: number, payload: TicketProgressUpdatePayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/progress`, {
     method: "PATCH",
     headers: authHeaders(token),
     body: JSON.stringify(payload),

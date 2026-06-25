@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.enums import TicketStatus
 from app.models.ticket import Ticket
 from app.models.approval import Approval
+from app.models.supplier import Supplier
 from app.models.ticket_history import TicketHistory
 from app.models.unit import Unit
 
@@ -25,6 +26,7 @@ def _ticket_base_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.unit),
         selectinload(Ticket.opened_by_user),
         selectinload(Ticket.assigned_to_user),
+        selectinload(Ticket.supplier),
     )
 
 
@@ -33,6 +35,7 @@ def _ticket_detail_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.unit),
         selectinload(Ticket.opened_by_user),
         selectinload(Ticket.assigned_to_user),
+        selectinload(Ticket.supplier),
         selectinload(Ticket.history_entries).selectinload(TicketHistory.user),
         selectinload(Ticket.approvals).selectinload(Approval.requested_by_user),
         selectinload(Ticket.approvals).selectinload(Approval.approved_by_user),

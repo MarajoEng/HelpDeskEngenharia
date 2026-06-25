@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import ApprovalDecisionModal from "../components/tickets/ApprovalDecisionModal";
+import ProgressUpdateModal from "../components/tickets/ProgressUpdateModal";
 import RequestApprovalModal from "../components/tickets/RequestApprovalModal";
+import StartExecutionModal from "../components/tickets/StartExecutionModal";
 import TriageTicketModal from "../components/tickets/TriageTicketModal";
 import {
   APPROVAL_STATUS_LABELS,
@@ -22,7 +24,7 @@ import {
 } from "../components/tickets/ticketUi";
 import { getTicketById } from "../api/ticketApi";
 import { useAuth } from "../hooks/useAuth";
-import type { TicketApproval, TicketDetail, TicketHistory, SlaStatus } from "../types/ticket";
+import type { TicketApproval, TicketDetail, TicketHistory, SlaStatus, TicketStatus } from "../types/ticket";
 
 const CATEGORY_LABELS: Record<string, string> = {
   fuel_pump: "Bomba de combustivel",
@@ -233,6 +235,8 @@ export default function TicketDetailPage() {
   const [isTriageOpen, setIsTriageOpen] = useState(false);
   const [isRequestApprovalOpen, setIsRequestApprovalOpen] = useState(false);
   const [isDecisionOpen, setIsDecisionOpen] = useState(false);
+  const [isStartExecutionOpen, setIsStartExecutionOpen] = useState(false);
+  const [isProgressOpen, setIsProgressOpen] = useState(false);
 
   useEffect(() => {
     if (!token || !ticketId) return;
@@ -305,6 +309,15 @@ export default function TicketDetailPage() {
     Boolean(user) &&
     !canDecideApproval;
 
+  const _executionFromStatuses: TicketStatus[] = ["triage", "approved"];
+  const canStartExecution =
+    canAccessEngineeringQueue(user?.role) &&
+    _executionFromStatuses.includes(ticket.status) &&
+    !(ticket.status === "triage" && ticket.requires_approval) &&
+    !(ticket.status === "approved" && !ticket.requires_approval);
+  const canUpdateProgress =
+    canAccessEngineeringQueue(user?.role) && ticket.status === "in_progress";
+
   return (
     <section className="page">
       <div className="page__header">
@@ -336,6 +349,16 @@ export default function TicketDetailPage() {
           {canDecideApproval ? (
             <button className="button-secondary" type="button" onClick={() => setIsDecisionOpen(true)}>
               Decidir aprovacao
+            </button>
+          ) : null}
+          {canStartExecution ? (
+            <button className="button-secondary" type="button" onClick={() => setIsStartExecutionOpen(true)}>
+              Iniciar execucao
+            </button>
+          ) : null}
+          {canUpdateProgress ? (
+            <button className="button-secondary" type="button" onClick={() => setIsProgressOpen(true)}>
+              Registrar progresso
             </button>
           ) : null}
           <Link className="button-secondary button-primary--link" to="/tickets">
@@ -402,6 +425,20 @@ export default function TicketDetailPage() {
                 {indicators.is_late ? "Sim" : "Nao"}
               </dd>
             </div>
+            {indicators.elapsed_execution_hours != null ? (
+              <div>
+                <dt>Tempo em execucao</dt>
+                <dd>{indicators.elapsed_execution_hours}h</dd>
+              </div>
+            ) : null}
+            {ticket.status === "in_progress" ? (
+              <div>
+                <dt>Execucao atrasada</dt>
+                <dd style={{ color: indicators.execution_is_late ? "var(--danger)" : "var(--success)" }}>
+                  {indicators.execution_is_late ? "Sim" : "Nao"}
+                </dd>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -467,6 +504,18 @@ export default function TicketDetailPage() {
               <dd>{formatMoney(ticket.approved_cost)}</dd>
             </div>
             <div>
+              <dt>Previsao de conclusao</dt>
+              <dd>{formatDate(ticket.expected_resolution_at)}</dd>
+            </div>
+            <div>
+              <dt>Fornecedor</dt>
+              <dd>
+                {ticket.supplier
+                  ? `${ticket.supplier.name} · ${ticket.supplier.specialty}`
+                  : "Nao informado"}
+              </dd>
+            </div>
+            <div>
               <dt>Ultima atualizacao</dt>
               <dd>{formatDate(ticket.updated_at)}</dd>
             </div>
@@ -516,7 +565,7 @@ export default function TicketDetailPage() {
         </div>
 
         <article className="state-card">
-          Execucao, encerramento, upload, dashboard, relatorios e Celery continuam fora do escopo desta fase.
+          Encerramento, upload, dashboard, relatorios e Celery continuam fora do escopo desta fase.
         </article>
       </section>
 
@@ -557,6 +606,32 @@ export default function TicketDetailPage() {
             setTicket(updatedTicket);
             setIsDecisionOpen(false);
             setSuccessMessage(`Decisao de aprovacao registrada para ${updatedTicket.ticket_number}.`);
+          }}
+        />
+      ) : null}
+
+      {isStartExecutionOpen && token ? (
+        <StartExecutionModal
+          ticket={ticket}
+          token={token}
+          onClose={() => setIsStartExecutionOpen(false)}
+          onSuccess={(updatedTicket) => {
+            setTicket(updatedTicket);
+            setIsStartExecutionOpen(false);
+            setSuccessMessage(`Execucao iniciada para ${updatedTicket.ticket_number}.`);
+          }}
+        />
+      ) : null}
+
+      {isProgressOpen && token ? (
+        <ProgressUpdateModal
+          ticket={ticket}
+          token={token}
+          onClose={() => setIsProgressOpen(false)}
+          onSuccess={(updatedTicket) => {
+            setTicket(updatedTicket);
+            setIsProgressOpen(false);
+            setSuccessMessage(`Progresso registrado para ${updatedTicket.ticket_number}.`);
           }}
         />
       ) : null}

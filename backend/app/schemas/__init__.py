@@ -10,6 +10,7 @@ from app.schemas.approval import (
 )
 from app.schemas.auth import CurrentUserResponse, LoginRequest, TokenResponse, UserCreateInternal
 from app.schemas.pagination import PaginatedResponse
+from app.schemas.supplier import SupplierCreate, SupplierListParams, SupplierListResponse, SupplierResponse, SupplierUpdate
 from app.schemas.ticket import (
     TicketCreate,
     TicketDetailResponse,
@@ -17,7 +18,10 @@ from app.schemas.ticket import (
     TicketIndicators,
     TicketListParams,
     TicketListResponse,
+    TicketProgressUpdateRequest,
     TicketResponse,
+    TicketStartExecutionRequest,
+    TicketSupplierSummary,
     TicketTriageRequest,
     TicketUnitSummary,
     TicketUserSummary,
@@ -37,13 +41,21 @@ __all__ = [
     "CurrentUserResponse",
     "LoginRequest",
     "PaginatedResponse",
+    "SupplierCreate",
+    "SupplierListParams",
+    "SupplierListResponse",
+    "SupplierResponse",
+    "SupplierUpdate",
     "TicketCreate",
     "TicketDetailResponse",
     "TicketHistoryResponse",
     "TicketIndicators",
     "TicketListParams",
     "TicketListResponse",
+    "TicketProgressUpdateRequest",
     "TicketResponse",
+    "TicketStartExecutionRequest",
+    "TicketSupplierSummary",
     "TicketTriageRequest",
     "TicketUnitSummary",
     "TicketUserSummary",

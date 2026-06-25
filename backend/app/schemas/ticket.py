@@ -55,6 +55,16 @@ class TicketUserSummary(BaseModel):
     name: str
 
 
+class TicketSupplierSummary(BaseModel):
+    id: int
+    name: str
+    document: str
+    phone: str
+    email: str
+    specialty: str
+    is_active: bool
+
+
 class TicketHistoryResponse(BaseModel):
     id: int
     user_id: int
@@ -70,6 +80,8 @@ class TicketIndicators(BaseModel):
     elapsed_hours: float | None
     is_late: bool
     sla_status: Literal["on_track", "late", "no_sla", "closed"]
+    elapsed_execution_hours: float | None = None
+    execution_is_late: bool = False
 
 
 class TicketResponse(BaseModel):
@@ -102,12 +114,15 @@ class TicketResponse(BaseModel):
     resolved_at: datetime | None
     closed_at: datetime | None
     sla_due_at: datetime | None
+    expected_resolution_at: datetime | None
+    supplier_id: int | None
     created_at: datetime
     updated_at: datetime
     unit_name: str | None = None
     unit_code: str | None = None
     opened_by_user_name: str | None = None
     assigned_to_user_name: str | None = None
+    supplier_name: str | None = None
 
 
 class TicketDetailResponse(BaseModel):
@@ -139,11 +154,14 @@ class TicketDetailResponse(BaseModel):
     resolved_at: datetime | None
     closed_at: datetime | None
     sla_due_at: datetime | None
+    expected_resolution_at: datetime | None
+    supplier_id: int | None
     created_at: datetime
     updated_at: datetime
     unit: TicketUnitSummary | None
     opened_by: TicketUserSummary | None
     assigned_to: TicketUserSummary | None
+    supplier: TicketSupplierSummary | None
     history: list[TicketHistoryResponse]
     approvals: list[ApprovalResponse]
     indicators: TicketIndicators
@@ -204,4 +222,55 @@ class TicketTriageRequest(BaseModel):
         normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
         if normalized < datetime.now(UTC):
             raise ValueError("SLA due date cannot be in the past.")
+        return normalized
+
+
+class TicketStartExecutionRequest(BaseModel):
+    assigned_to_user_id: int | None = Field(default=None, ge=1)
+    supplier_id: int | None = Field(default=None, ge=1)
+    expected_resolution_at: datetime | None = None
+    execution_comment: str = Field(min_length=1)
+
+    @field_validator("execution_comment")
+    @classmethod
+    def strip_execution_comment(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Execution comment is required.")
+        return normalized
+
+    @field_validator("expected_resolution_at")
+    @classmethod
+    def validate_expected_resolution_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
+        normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        if normalized <= datetime.now(UTC):
+            raise ValueError("Expected resolution date cannot be in the past.")
+        return normalized
+
+
+class TicketProgressUpdateRequest(BaseModel):
+    progress_comment: str = Field(min_length=1)
+    expected_resolution_at: datetime | None = None
+    estimated_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    supplier_id: int | None = Field(default=None, ge=1)
+    assigned_to_user_id: int | None = Field(default=None, ge=1)
+
+    @field_validator("progress_comment")
+    @classmethod
+    def strip_progress_comment(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Progress comment is required.")
+        return normalized
+
+    @field_validator("expected_resolution_at")
+    @classmethod
+    def validate_expected_resolution_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
+        normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        if normalized <= datetime.now(UTC):
+            raise ValueError("Expected resolution date cannot be in the past.")
         return normalized

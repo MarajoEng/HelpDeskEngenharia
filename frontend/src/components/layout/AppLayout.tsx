@@ -9,6 +9,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const canAccessEngineering = user?.role === "admin" || user?.role === "engineering";
   const canAccessApprovalLevels = user?.role === "admin";
   const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
+  const canAccessSuppliers = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
   const canAccessUsers = user?.role === "admin";
 
   return (
@@ -71,6 +72,16 @@ export default function AppLayout({ children }: PropsWithChildren) {
               </NavLink>
             </>
           ) : null}
+          {canAccessSuppliers ? (
+            <NavLink
+              to="/suppliers"
+              className={({ isActive }) =>
+                isActive ? "nav-link nav-link--active" : "nav-link"
+              }
+            >
+              Fornecedores
+            </NavLink>
+          ) : null}
           {canAccessUnits ? (
             <NavLink
               to="/units"
@@ -94,9 +105,9 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </nav>
 
         <div className="shell__sidebar-card">
-          <span className="status-badge status-badge--info">Fase 8</span>
+          <span className="status-badge status-badge--info">Fase 9</span>
           <p>
-            Triagem e aprovacao por alcada configuravel com auditoria no detalhe do chamado.
+            Execucao de chamados, fornecedores e progresso com indicadores em tempo real.
           </p>
         </div>
       </aside>

@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin
 
@@ -19,3 +19,5 @@ class Supplier(CreatedAtMixin, Base):
         default=True,
         server_default="true",
     )
+
+    tickets: Mapped[list["Ticket"]] = relationship(back_populates="supplier")

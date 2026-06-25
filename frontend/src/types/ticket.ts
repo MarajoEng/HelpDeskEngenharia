@@ -46,6 +46,16 @@ export interface TicketUserSummary {
   name: string;
 }
 
+export interface TicketSupplierSummary {
+  id: number;
+  name: string;
+  document: string;
+  phone: string;
+  email: string;
+  specialty: string;
+  is_active: boolean;
+}
+
 export interface TicketHistory {
   id: number;
   user_id: number;
@@ -61,6 +71,8 @@ export interface TicketIndicators {
   elapsed_hours: number | null;
   is_late: boolean;
   sla_status: SlaStatus;
+  elapsed_execution_hours: number | null;
+  execution_is_late: boolean;
 }
 
 export interface TicketApproval {
@@ -109,12 +121,15 @@ export interface Ticket {
   resolved_at: string | null;
   closed_at: string | null;
   sla_due_at: string | null;
+  expected_resolution_at: string | null;
+  supplier_id: number | null;
   created_at: string;
   updated_at: string;
   unit_name?: string | null;
   unit_code?: string | null;
   opened_by_user_name?: string | null;
   assigned_to_user_name?: string | null;
+  supplier_name?: string | null;
 }
 
 export interface TicketDetail {
@@ -144,11 +159,14 @@ export interface TicketDetail {
   resolved_at: string | null;
   closed_at: string | null;
   sla_due_at: string | null;
+  expected_resolution_at: string | null;
+  supplier_id: number | null;
   created_at: string;
   updated_at: string;
   unit: TicketUnitSummary | null;
   opened_by: TicketUserSummary | null;
   assigned_to: TicketUserSummary | null;
+  supplier: TicketSupplierSummary | null;
   history: TicketHistory[];
   approvals: TicketApproval[];
   indicators: TicketIndicators;
@@ -187,6 +205,21 @@ export interface TicketApprovalDecisionPayload {
   decision: "approved" | "rejected";
   amount_approved?: string | null;
   justification: string;
+}
+
+export interface TicketStartExecutionPayload {
+  assigned_to_user_id?: number | null;
+  supplier_id?: number | null;
+  expected_resolution_at?: string | null;
+  execution_comment: string;
+}
+
+export interface TicketProgressUpdatePayload {
+  progress_comment: string;
+  expected_resolution_at?: string | null;
+  estimated_cost?: string | null;
+  supplier_id?: number | null;
+  assigned_to_user_id?: number | null;
 }
 
 export interface TicketFilters {

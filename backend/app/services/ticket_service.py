@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.enums import TicketStatus, UserRole
 from app.models.ticket import Ticket
 from app.models.user import User
+from app.repositories.supplier_repository import get_supplier_by_id as get_supplier
 from app.repositories.ticket_repository import (
     count_tickets,
     create_ticket,
@@ -26,6 +27,9 @@ from app.schemas.ticket import (
     TicketDetailResponse,
     TicketHistoryResponse,
     TicketIndicators,
+    TicketStartExecutionRequest,
+    TicketProgressUpdateRequest,
+    TicketSupplierSummary,
     TicketUnitSummary,
     TicketUserSummary,
 )
@@ -68,6 +72,22 @@ class AssignedUserRoleError(ValidationServiceError):
 
 class TicketTriageTransitionError(ConflictServiceError):
     detail = "Ticket cannot be triaged from the current status."
+
+
+class TicketExecutionTransitionError(ConflictServiceError):
+    detail = "Ticket cannot start execution from the current status."
+
+
+class TicketProgressTransitionError(ConflictServiceError):
+    detail = "Ticket must be in progress to update progress."
+
+
+class SupplierNotFoundError(ValidationServiceError):
+    detail = "Supplier not found."
+
+
+class SupplierInactiveError(ValidationServiceError):
+    detail = "Supplier must be active."
 
 
 def _to_utc(dt: datetime) -> datetime:
@@ -122,12 +142,15 @@ def _to_ticket_response(ticket: Ticket) -> TicketResponse:
             "resolved_at": ticket.resolved_at,
             "closed_at": ticket.closed_at,
             "sla_due_at": ticket.sla_due_at,
+            "expected_resolution_at": ticket.expected_resolution_at,
+            "supplier_id": ticket.supplier_id,
             "created_at": ticket.created_at,
             "updated_at": ticket.updated_at,
             "unit_name": ticket.unit.name if ticket.unit else None,
             "unit_code": ticket.unit.code if ticket.unit else None,
             "opened_by_user_name": ticket.opened_by_user.name if ticket.opened_by_user else None,
             "assigned_to_user_name": ticket.assigned_to_user.name if ticket.assigned_to_user else None,
+            "supplier_name": ticket.supplier.name if ticket.supplier else None,
         }
     )
 
@@ -174,6 +197,15 @@ def _calculate_indicators(ticket: Ticket) -> TicketIndicators:
         sla_status = "late"
         is_late = True
 
+    elapsed_execution_hours: float | None = None
+    execution_is_late = False
+    if ticket.started_at and ticket.status == TicketStatus.IN_PROGRESS:
+        started_utc = _to_utc(ticket.started_at)
+        elapsed_execution_hours = round((now - started_utc).total_seconds() / 3600, 2)
+        if ticket.expected_resolution_at:
+            expected_utc = _to_utc(ticket.expected_resolution_at)
+            execution_is_late = expected_utc < now
+
     return TicketIndicators(
         estimated_loss_total=_calculate_estimated_loss_total(
             ticket.fuel_nozzles_stopped,
@@ -182,6 +214,8 @@ def _calculate_indicators(ticket: Ticket) -> TicketIndicators:
         elapsed_hours=elapsed_hours,
         is_late=is_late,
         sla_status=sla_status,
+        elapsed_execution_hours=elapsed_execution_hours,
+        execution_is_late=execution_is_late,
     )
 
 
@@ -207,6 +241,20 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
     assigned_to_summary = (
         TicketUserSummary(id=ticket.assigned_to_user.id, name=ticket.assigned_to_user.name)
         if ticket.assigned_to_user
+        else None
+    )
+
+    supplier_summary = (
+        TicketSupplierSummary(
+            id=ticket.supplier.id,
+            name=ticket.supplier.name,
+            document=ticket.supplier.document,
+            phone=ticket.supplier.phone,
+            email=ticket.supplier.email,
+            specialty=ticket.supplier.specialty,
+            is_active=ticket.supplier.is_active,
+        )
+        if ticket.supplier
         else None
     )
 
@@ -253,11 +301,14 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
         resolved_at=ticket.resolved_at,
         closed_at=ticket.closed_at,
         sla_due_at=ticket.sla_due_at,
+        expected_resolution_at=ticket.expected_resolution_at,
+        supplier_id=ticket.supplier_id,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         unit=unit_summary,
         opened_by=opened_by_summary,
         assigned_to=assigned_to_summary,
+        supplier=supplier_summary,
         history=history_responses,
         approvals=approval_responses,
         indicators=_calculate_indicators(ticket),
@@ -333,6 +384,8 @@ def create_ticket_record(session: Session, payload: TicketCreate, current_user: 
         resolved_at=None,
         closed_at=None,
         sla_due_at=None,
+        expected_resolution_at=None,
+        supplier_id=None,
     )
     ticket.ticket_number = _build_ticket_number(ticket.id, opened_at)
     create_ticket_history(
@@ -425,6 +478,11 @@ def _enforce_triage_permission(current_user: User) -> None:
         raise TicketPermissionError
 
 
+def _enforce_execution_permission(current_user: User) -> None:
+    if current_user.role not in {UserRole.ADMIN, UserRole.ENGINEERING}:
+        raise TicketPermissionError
+
+
 def _validate_assigned_user(session: Session, user_id: int | None) -> User | None:
     if user_id is None:
         return None
@@ -437,6 +495,16 @@ def _validate_assigned_user(session: Session, user_id: int | None) -> User | Non
     if user.role not in {UserRole.ADMIN, UserRole.ENGINEERING}:
         raise AssignedUserRoleError
     return user
+
+
+def _validate_supplier(session: Session, supplier_id: int | None) -> None:
+    if supplier_id is None:
+        return
+    supplier = get_supplier(session, supplier_id)
+    if supplier is None:
+        raise SupplierNotFoundError
+    if not supplier.is_active:
+        raise SupplierInactiveError
 
 
 def triage_ticket(
@@ -489,6 +557,113 @@ def triage_ticket(
         old_status=old_status,
         new_status=TicketStatus.TRIAGE,
         comment=payload.technical_comment,
+    )
+    session.commit()
+
+    persisted_ticket = get_ticket_detail_by_id(session, ticket.id)
+    if persisted_ticket is None:
+        raise TicketNotFoundError
+    return build_ticket_detail_response(persisted_ticket)
+
+
+def start_ticket_execution(
+    session: Session,
+    ticket_id: int,
+    payload: TicketStartExecutionRequest,
+    current_user: User,
+) -> TicketDetailResponse:
+    _enforce_execution_permission(current_user)
+
+    ticket = get_ticket_for_update(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
+
+    valid_from_no_approval = {TicketStatus.TRIAGE}
+    valid_from_with_approval = {TicketStatus.APPROVED}
+    valid_statuses = valid_from_no_approval | valid_from_with_approval
+
+    if ticket.status not in valid_statuses:
+        raise TicketExecutionTransitionError
+
+    if ticket.status == TicketStatus.TRIAGE and ticket.requires_approval:
+        raise TicketExecutionTransitionError
+
+    if ticket.status == TicketStatus.APPROVED and not ticket.requires_approval:
+        raise TicketExecutionTransitionError
+
+    _validate_assigned_user(session, payload.assigned_to_user_id)
+    _validate_supplier(session, payload.supplier_id)
+
+    now = datetime.now(UTC)
+    changes: dict[str, object] = {
+        "status": TicketStatus.IN_PROGRESS,
+        "started_at": now,
+    }
+    if payload.assigned_to_user_id is not None:
+        changes["assigned_to_user_id"] = payload.assigned_to_user_id
+    if payload.supplier_id is not None:
+        changes["supplier_id"] = payload.supplier_id
+    if payload.expected_resolution_at is not None:
+        changes["expected_resolution_at"] = payload.expected_resolution_at
+
+    old_status = ticket.status
+    update_ticket(session, ticket, **changes)
+    create_ticket_history(
+        session,
+        ticket_id=ticket.id,
+        user_id=current_user.id,
+        old_status=old_status,
+        new_status=TicketStatus.IN_PROGRESS,
+        comment=payload.execution_comment,
+    )
+    session.commit()
+
+    persisted_ticket = get_ticket_detail_by_id(session, ticket.id)
+    if persisted_ticket is None:
+        raise TicketNotFoundError
+    return build_ticket_detail_response(persisted_ticket)
+
+
+def update_ticket_progress(
+    session: Session,
+    ticket_id: int,
+    payload: TicketProgressUpdateRequest,
+    current_user: User,
+) -> TicketDetailResponse:
+    _enforce_execution_permission(current_user)
+
+    ticket = get_ticket_for_update(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
+
+    if ticket.status != TicketStatus.IN_PROGRESS:
+        raise TicketProgressTransitionError
+
+    _validate_assigned_user(session, payload.assigned_to_user_id)
+    _validate_supplier(session, payload.supplier_id)
+
+    changes: dict[str, object] = {}
+    payload_fields = payload.model_fields_set
+
+    if "expected_resolution_at" in payload_fields:
+        changes["expected_resolution_at"] = payload.expected_resolution_at
+    if "estimated_cost" in payload_fields and payload.estimated_cost is not None:
+        changes["estimated_cost"] = payload.estimated_cost
+    if "supplier_id" in payload_fields and payload.supplier_id is not None:
+        changes["supplier_id"] = payload.supplier_id
+    if "assigned_to_user_id" in payload_fields and payload.assigned_to_user_id is not None:
+        changes["assigned_to_user_id"] = payload.assigned_to_user_id
+
+    if changes:
+        update_ticket(session, ticket, **changes)
+
+    create_ticket_history(
+        session,
+        ticket_id=ticket.id,
+        user_id=current_user.id,
+        old_status=TicketStatus.IN_PROGRESS,
+        new_status=TicketStatus.IN_PROGRESS,
+        comment=payload.progress_comment,
     )
     session.commit()
 

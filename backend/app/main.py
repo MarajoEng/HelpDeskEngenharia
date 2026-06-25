@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api.routes.approval_level_routes import router as approval_level_router
 from app.api.routes.auth_routes import router as auth_router
 from app.api.routes.health_routes import router as health_router
+from app.api.routes.supplier_routes import router as supplier_router
 from app.api.routes.ticket_routes import router as ticket_router
 from app.api.routes.unit_routes import router as unit_router
 from app.api.routes.user_routes import router as user_router
@@ -19,6 +20,7 @@ def create_application() -> FastAPI:
     application.include_router(approval_level_router, prefix=settings.api_prefix)
     application.include_router(auth_router, prefix=settings.api_prefix)
     application.include_router(health_router, prefix=settings.api_prefix)
+    application.include_router(supplier_router, prefix=settings.api_prefix)
     application.include_router(ticket_router, prefix=settings.api_prefix)
     application.include_router(unit_router, prefix=settings.api_prefix)
     application.include_router(user_router, prefix=settings.api_prefix)
