@@ -1,3 +1,4 @@
+import type { UserRole } from "./auth";
 import type { PaginatedResponse } from "./pagination";
 
 export type TicketCategory =
@@ -30,6 +31,7 @@ export type TicketStatus =
   | "canceled";
 
 export type SlaStatus = "on_track" | "late" | "no_sla" | "closed";
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "canceled";
 
 export interface TicketUnitSummary {
   id: number;
@@ -59,6 +61,24 @@ export interface TicketIndicators {
   elapsed_hours: number | null;
   is_late: boolean;
   sla_status: SlaStatus;
+}
+
+export interface TicketApproval {
+  id: number;
+  ticket_id: number;
+  requested_by_user_id: number;
+  requested_by_user_name: string | null;
+  approved_by_user_id: number | null;
+  approved_by_user_name: string | null;
+  approval_level_id: number | null;
+  approval_level_name: string | null;
+  approval_allowed_roles: UserRole[];
+  status: ApprovalStatus;
+  amount_requested: string;
+  amount_approved: string | null;
+  justification: string;
+  approved_at: string | null;
+  created_at: string;
 }
 
 export interface Ticket {
@@ -130,6 +150,7 @@ export interface TicketDetail {
   opened_by: TicketUserSummary | null;
   assigned_to: TicketUserSummary | null;
   history: TicketHistory[];
+  approvals: TicketApproval[];
   indicators: TicketIndicators;
 }
 
@@ -155,6 +176,17 @@ export interface TicketTriagePayload {
   requires_approval?: boolean;
   sla_due_at?: string | null;
   technical_comment: string;
+}
+
+export interface TicketApprovalRequestPayload {
+  amount_requested: string;
+  justification: string;
+}
+
+export interface TicketApprovalDecisionPayload {
+  decision: "approved" | "rejected";
+  amount_approved?: string | null;
+  justification: string;
 }
 
 export interface TicketFilters {

@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
+from app.schemas.approval import ApprovalResponse
 from app.schemas.pagination import PaginatedResponse, PageParams
 
 
@@ -144,6 +145,7 @@ class TicketDetailResponse(BaseModel):
     opened_by: TicketUserSummary | None
     assigned_to: TicketUserSummary | None
     history: list[TicketHistoryResponse]
+    approvals: list[ApprovalResponse]
     indicators: TicketIndicators
 
 

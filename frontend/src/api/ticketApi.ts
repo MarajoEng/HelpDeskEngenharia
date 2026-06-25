@@ -1,6 +1,8 @@
 import { requestJson } from "./http";
 import type {
   Ticket,
+  TicketApprovalDecisionPayload,
+  TicketApprovalRequestPayload,
   TicketCreatePayload,
   TicketDetail,
   TicketFilters,
@@ -65,6 +67,22 @@ export function listTriageAssignees(token: string, filters: UserFilters) {
 
 export function triageTicket(token: string, ticketId: number, payload: TicketTriagePayload) {
   return requestJson<TicketDetail>(`/tickets/${ticketId}/triage`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function requestTicketApproval(token: string, ticketId: number, payload: TicketApprovalRequestPayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/approval-request`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function decideTicketApproval(token: string, ticketId: number, payload: TicketApprovalDecisionPayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/approval-decision`, {
     method: "PATCH",
     headers: authHeaders(token),
     body: JSON.stringify(payload),

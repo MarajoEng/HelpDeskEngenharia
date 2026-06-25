@@ -21,6 +21,7 @@ from app.repositories.ticket_repository import (
 from app.repositories.unit_repository import get_unit_by_id
 from app.repositories.user_repository import count_users, get_user_by_id, list_users
 from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse, TicketTriageRequest
+from app.schemas.approval import ApprovalResponse
 from app.schemas.ticket import (
     TicketDetailResponse,
     TicketHistoryResponse,
@@ -131,6 +132,26 @@ def _to_ticket_response(ticket: Ticket) -> TicketResponse:
     )
 
 
+def _to_approval_response(approval) -> ApprovalResponse:
+    return ApprovalResponse(
+        id=approval.id,
+        ticket_id=approval.ticket_id,
+        requested_by_user_id=approval.requested_by_user_id,
+        requested_by_user_name=approval.requested_by_user.name if approval.requested_by_user else None,
+        approved_by_user_id=approval.approved_by_user_id,
+        approved_by_user_name=approval.approved_by_user.name if approval.approved_by_user else None,
+        approval_level_id=approval.approval_level_id,
+        approval_level_name=approval.approval_level.name if approval.approval_level else None,
+        approval_allowed_roles=list(approval.approval_level.allowed_roles) if approval.approval_level else [],
+        status=approval.status,
+        amount_requested=approval.amount_requested,
+        amount_approved=approval.amount_approved,
+        justification=approval.justification,
+        approved_at=approval.approved_at,
+        created_at=approval.created_at,
+    )
+
+
 def _calculate_indicators(ticket: Ticket) -> TicketIndicators:
     now = datetime.now(UTC)
     opened_at = _to_utc(ticket.opened_at)
@@ -164,7 +185,7 @@ def _calculate_indicators(ticket: Ticket) -> TicketIndicators:
     )
 
 
-def _to_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
+def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
     unit_summary = (
         TicketUnitSummary(
             id=ticket.unit.id,
@@ -202,6 +223,8 @@ def _to_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
         )
         for h in history
     ]
+    approvals = sorted(ticket.approvals, key=lambda approval: approval.created_at)
+    approval_responses = [_to_approval_response(approval) for approval in approvals]
 
     return TicketDetailResponse(
         id=ticket.id,
@@ -236,6 +259,7 @@ def _to_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
         opened_by=opened_by_summary,
         assigned_to=assigned_to_summary,
         history=history_responses,
+        approvals=approval_responses,
         indicators=_calculate_indicators(ticket),
     )
 
@@ -393,7 +417,7 @@ def get_ticket_detail(session: Session, ticket_id: int, current_user: User) -> T
         raise TicketNotFoundError
     if not _can_view_ticket(current_user, ticket):
         raise TicketPermissionError
-    return _to_ticket_detail_response(ticket)
+    return build_ticket_detail_response(ticket)
 
 
 def _enforce_triage_permission(current_user: User) -> None:
@@ -471,7 +495,7 @@ def triage_ticket(
     persisted_ticket = get_ticket_detail_by_id(session, ticket.id)
     if persisted_ticket is None:
         raise TicketNotFoundError
-    return _to_ticket_detail_response(persisted_ticket)
+    return build_ticket_detail_response(persisted_ticket)
 
 
 def list_ticket_triage_assignees(

@@ -35,6 +35,21 @@ export const SEVERITY_LABELS: Record<TicketSeverity, string> = {
   critical: "Critica",
 };
 
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  engineering: "Engineering",
+  director: "Director",
+  supplier: "Supplier",
+};
+
+export const APPROVAL_STATUS_LABELS = {
+  pending: "Pendente",
+  approved: "Aprovado",
+  rejected: "Rejeitado",
+  canceled: "Cancelado",
+} as const;
+
 export const TRIAGE_ALLOWED_STATUSES: TicketStatus[] = ["open", "triage", "waiting_unit"];
 
 export function formatDate(value: string | null | undefined) {
@@ -46,6 +61,14 @@ export function formatDate(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+export function formatMoney(value: string | null | undefined) {
+  if (!value) return "Nao informado";
+  const parsed = Number(value);
+  return Number.isNaN(parsed)
+    ? value
+    : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(parsed);
 }
 
 export function formatDateTimeLocalInput(value: string | null | undefined) {
@@ -65,6 +88,12 @@ export function statusClass(status: TicketStatus) {
   if (status === "resolved" || status === "closed" || status === "approved") {
     return "status-badge status-badge--success";
   }
+  if (status === "rejected" || status === "canceled") return "status-badge status-badge--danger";
+  return "status-badge status-badge--muted";
+}
+
+export function approvalStatusClass(status: keyof typeof APPROVAL_STATUS_LABELS) {
+  if (status === "approved") return "status-badge status-badge--success";
   if (status === "rejected" || status === "canceled") return "status-badge status-badge--danger";
   return "status-badge status-badge--muted";
 }
@@ -90,4 +119,8 @@ export function canAccessEngineeringQueue(role: UserRole | undefined) {
 
 export function canTriageTicketStatus(status: TicketStatus) {
   return TRIAGE_ALLOWED_STATUSES.includes(status);
+}
+
+export function canManageApprovalRequest(role: UserRole | undefined) {
+  return role === "admin" || role === "engineering";
 }

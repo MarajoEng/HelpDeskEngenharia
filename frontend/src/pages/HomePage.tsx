@@ -46,16 +46,16 @@ export default function HomePage() {
             <li>Abertura de chamados com status inicial `open` e numero unico gerado no backend.</li>
             <li>Permissoes por perfil para criar, listar e detalhar chamados.</li>
             <li>Triagem tecnica com responsavel, ajuste de prioridade/severidade, SLA e comentario auditavel.</li>
-            <li>Fila dedicada da engenharia e detalhe atualizado em tempo real sem mock fixo.</li>
+            <li>Fila dedicada da engenharia, alçadas configuraveis e aprovacao de orcamento no detalhe sem mock fixo.</li>
           </ul>
         </article>
 
         <article className="panel">
           <h3>Limites preservados</h3>
           <ul className="list">
-            <li>Sem aprovacao de orcamento, execucao, encerramento, anexos ou dashboard.</li>
+            <li>Sem execucao, encerramento, anexos ou dashboard operacional.</li>
             <li>Sem dashboard, relatorios, upload ou automacoes assincronas.</li>
-            <li>Sem Celery, relatorios ou qualquer fluxo da FASE 8 em diante.</li>
+            <li>Sem Celery ou qualquer fluxo da FASE 9 em diante.</li>
           </ul>
         </article>
       </div>

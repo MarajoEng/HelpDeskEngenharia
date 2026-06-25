@@ -1,21 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { getTicketById } from "../api/ticketApi";
+import ApprovalDecisionModal from "../components/tickets/ApprovalDecisionModal";
+import RequestApprovalModal from "../components/tickets/RequestApprovalModal";
 import TriageTicketModal from "../components/tickets/TriageTicketModal";
 import {
+  APPROVAL_STATUS_LABELS,
   PRIORITY_LABELS,
+  ROLE_LABELS,
   SEVERITY_LABELS,
   STATUS_LABELS,
+  approvalStatusClass,
   canAccessEngineeringQueue,
+  canManageApprovalRequest,
   canTriageTicketStatus,
   formatDate,
+  formatMoney,
   priorityClass,
   statusClass,
   severityClass,
 } from "../components/tickets/ticketUi";
+import { getTicketById } from "../api/ticketApi";
 import { useAuth } from "../hooks/useAuth";
-import type { TicketDetail, TicketHistory, SlaStatus } from "../types/ticket";
+import type { TicketApproval, TicketDetail, TicketHistory, SlaStatus } from "../types/ticket";
 
 const CATEGORY_LABELS: Record<string, string> = {
   fuel_pump: "Bomba de combustivel",
@@ -29,14 +36,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   environmental_risk: "Risco ambiental",
   other: "Outro",
 };
-
-function moneyLabel(value: string | null | undefined) {
-  if (!value) return "Nao informado";
-  const parsed = Number(value);
-  return Number.isNaN(parsed)
-    ? value
-    : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(parsed);
-}
 
 function slaStatusLabel(slaStatus: SlaStatus) {
   switch (slaStatus) {
@@ -151,6 +150,79 @@ function HistoryTimeline({ history }: { history: TicketHistory[] }) {
   );
 }
 
+function ApprovalSection({
+  ticket,
+  pendingApproval,
+}: {
+  ticket: TicketDetail;
+  pendingApproval: TicketApproval | null;
+}) {
+  if (ticket.approvals.length === 0) {
+    return <div className="state-card">Nenhuma aprovacao registrada para este chamado.</div>;
+  }
+
+  return (
+    <div className="approval-stack">
+      {ticket.approvals.map((approval) => (
+        <article className="approval-card" key={approval.id}>
+          <div className="approval-card__header">
+            <div>
+              <h4 style={{ margin: "0 0 6px" }}>
+                {approval.approval_level_name ?? "Aprovacao sem alcada"}
+              </h4>
+              <p className="page__description" style={{ margin: 0 }}>
+                Solicitado por {approval.requested_by_user_name ?? `#${approval.requested_by_user_id}`} em{" "}
+                {formatDate(approval.created_at)}
+              </p>
+            </div>
+            <span className={approvalStatusClass(approval.status)}>
+              {APPROVAL_STATUS_LABELS[approval.status]}
+            </span>
+          </div>
+
+          <dl className="details-list">
+            <div>
+              <dt>Valor solicitado</dt>
+              <dd>{formatMoney(approval.amount_requested)}</dd>
+            </div>
+            <div>
+              <dt>Valor aprovado</dt>
+              <dd>{formatMoney(approval.amount_approved)}</dd>
+            </div>
+            <div>
+              <dt>Perfis permitidos</dt>
+              <dd>{approval.approval_allowed_roles.map((role) => ROLE_LABELS[role]).join(", ") || "—"}</dd>
+            </div>
+            <div>
+              <dt>Aprovador</dt>
+              <dd>{approval.approved_by_user_name ?? "Pendente"}</dd>
+            </div>
+            <div>
+              <dt>Data da decisao</dt>
+              <dd>{formatDate(approval.approved_at)}</dd>
+            </div>
+            <div>
+              <dt>Alcada aplicada</dt>
+              <dd>{approval.approval_level_name ?? "Nao informada"}</dd>
+            </div>
+          </dl>
+
+          <article className="info-card" style={{ marginTop: "16px" }}>
+            <h2>Justificativa</h2>
+            <p style={{ whiteSpace: "pre-wrap" }}>{approval.justification}</p>
+          </article>
+
+          {pendingApproval?.id === approval.id ? (
+            <div className="state-card" style={{ marginTop: "16px" }}>
+              Esta e a aprovacao pendente atualmente vinculada ao chamado.
+            </div>
+          ) : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export default function TicketDetailPage() {
   const { ticketId } = useParams();
   const { token, user } = useAuth();
@@ -159,6 +231,8 @@ export default function TicketDetailPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isTriageOpen, setIsTriageOpen] = useState(false);
+  const [isRequestApprovalOpen, setIsRequestApprovalOpen] = useState(false);
+  const [isDecisionOpen, setIsDecisionOpen] = useState(false);
 
   useEffect(() => {
     if (!token || !ticketId) return;
@@ -187,6 +261,11 @@ export default function TicketDetailPage() {
     };
   }, [ticketId, token]);
 
+  const pendingApproval = useMemo(() => {
+    if (!ticket) return null;
+    return [...ticket.approvals].reverse().find((approval) => approval.status === "pending") ?? null;
+  }, [ticket]);
+
   if (isLoading) {
     return (
       <section className="page">
@@ -214,6 +293,17 @@ export default function TicketDetailPage() {
   const { indicators } = ticket;
   const canAccessTriage = canAccessEngineeringQueue(user?.role);
   const canOpenTriage = canTriageTicketStatus(ticket.status);
+  const canRequestApproval = canManageApprovalRequest(user?.role) && ticket.status === "triage" && ticket.requires_approval;
+  const canDecideApproval = Boolean(
+    pendingApproval &&
+      user &&
+      pendingApproval.approval_allowed_roles.includes(user.role),
+  );
+  const shouldShowNoAuthorityMessage =
+    Boolean(pendingApproval) &&
+    ticket.status === "waiting_approval" &&
+    Boolean(user) &&
+    !canDecideApproval;
 
   return (
     <section className="page">
@@ -238,6 +328,16 @@ export default function TicketDetailPage() {
               Fazer triagem
             </button>
           ) : null}
+          {canRequestApproval ? (
+            <button className="button-secondary" type="button" onClick={() => setIsRequestApprovalOpen(true)}>
+              Solicitar aprovacao
+            </button>
+          ) : null}
+          {canDecideApproval ? (
+            <button className="button-secondary" type="button" onClick={() => setIsDecisionOpen(true)}>
+              Decidir aprovacao
+            </button>
+          ) : null}
           <Link className="button-secondary button-primary--link" to="/tickets">
             Voltar
           </Link>
@@ -250,6 +350,11 @@ export default function TicketDetailPage() {
           A fase atual permite triagem apenas para chamados `open`, `waiting_unit` ou ja em `triage`.
         </div>
       ) : null}
+      {shouldShowNoAuthorityMessage ? (
+        <div className="state-card">
+          Seu perfil nao possui alcada para aprovar este valor.
+        </div>
+      ) : null}
 
       <section className="panel panel--stack">
         <div className="ticket-summary">
@@ -260,7 +365,7 @@ export default function TicketDetailPage() {
             </p>
           </div>
           <div className="ticket-summary__meta">
-            <span className={statusClass(ticket.status)}>{STATUS_LABELS[ticket.status] ?? ticket.status}</span>
+            <span className={statusClass(ticket.status)}>{STATUS_LABELS[ticket.status]}</span>
             <span className={priorityClass(ticket.priority)}>{PRIORITY_LABELS[ticket.priority]}</span>
             <span className={severityClass(ticket.severity)}>{SEVERITY_LABELS[ticket.severity]}</span>
           </div>
@@ -289,7 +394,7 @@ export default function TicketDetailPage() {
             </div>
             <div>
               <dt>Perda estimada total</dt>
-              <dd>{moneyLabel(indicators.estimated_loss_total)}</dd>
+              <dd>{formatMoney(indicators.estimated_loss_total)}</dd>
             </div>
             <div>
               <dt>Atrasado</dt>
@@ -351,11 +456,15 @@ export default function TicketDetailPage() {
             </div>
             <div>
               <dt>Perda diaria estimada</dt>
-              <dd>{moneyLabel(ticket.estimated_daily_loss)}</dd>
+              <dd>{formatMoney(ticket.estimated_daily_loss)}</dd>
             </div>
             <div>
               <dt>Custo estimado</dt>
-              <dd>{moneyLabel(ticket.estimated_cost)}</dd>
+              <dd>{formatMoney(ticket.estimated_cost)}</dd>
+            </div>
+            <div>
+              <dt>Custo aprovado</dt>
+              <dd>{formatMoney(ticket.approved_cost)}</dd>
             </div>
             <div>
               <dt>Ultima atualizacao</dt>
@@ -386,13 +495,28 @@ export default function TicketDetailPage() {
               color: "var(--muted)",
             }}
           >
+            Aprovacoes
+          </h3>
+          <ApprovalSection ticket={ticket} pendingApproval={pendingApproval} />
+        </div>
+
+        <div>
+          <h3
+            style={{
+              margin: "0 0 16px",
+              fontSize: "0.95rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              color: "var(--muted)",
+            }}
+          >
             Historico
           </h3>
           <HistoryTimeline history={ticket.history} />
         </div>
 
         <article className="state-card">
-          Aprovacao, execucao, encerramento, upload e dashboard continuam fora do escopo desta fase.
+          Execucao, encerramento, upload, dashboard, relatorios e Celery continuam fora do escopo desta fase.
         </article>
       </section>
 
@@ -406,6 +530,33 @@ export default function TicketDetailPage() {
             setTicket(updatedTicket);
             setIsTriageOpen(false);
             setSuccessMessage(`Triagem registrada para ${updatedTicket.ticket_number}.`);
+          }}
+        />
+      ) : null}
+
+      {isRequestApprovalOpen && token ? (
+        <RequestApprovalModal
+          ticket={ticket}
+          token={token}
+          onClose={() => setIsRequestApprovalOpen(false)}
+          onSuccess={(updatedTicket) => {
+            setTicket(updatedTicket);
+            setIsRequestApprovalOpen(false);
+            setSuccessMessage(`Solicitacao de aprovacao registrada para ${updatedTicket.ticket_number}.`);
+          }}
+        />
+      ) : null}
+
+      {isDecisionOpen && token && pendingApproval ? (
+        <ApprovalDecisionModal
+          ticket={ticket}
+          approval={pendingApproval}
+          token={token}
+          onClose={() => setIsDecisionOpen(false)}
+          onSuccess={(updatedTicket) => {
+            setTicket(updatedTicket);
+            setIsDecisionOpen(false);
+            setSuccessMessage(`Decisao de aprovacao registrada para ${updatedTicket.ticket_number}.`);
           }}
         />
       ) : null}

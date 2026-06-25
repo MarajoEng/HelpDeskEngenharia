@@ -419,6 +419,12 @@ a {
   font-size: 0.8rem;
 }
 
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .field input {
   padding: 14px 16px;
   border-radius: 16px;
@@ -541,6 +547,26 @@ a {
   letter-spacing: 0.12em;
   font-size: 0.74rem;
   color: var(--primary);
+}
+
+.approval-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.approval-card {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.approval-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
 }
 
 .table-wrap {
@@ -773,7 +799,8 @@ a {
   .summary-grid,
   .ticket-triage-grid,
   .engineering-filters,
-  .details-list--metrics {
+  .details-list--metrics,
+  .checkbox-grid {
     grid-template-columns: 1fr;
   }
 
@@ -783,7 +810,8 @@ a {
   .ticket-summary,
   .engineering-toolbar,
   .header-actions,
-  .table-actions {
+  .table-actions,
+  .approval-card__header {
     flex-direction: column;
     align-items: flex-start;
   }

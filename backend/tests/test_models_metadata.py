@@ -6,6 +6,7 @@ from app.models.enums import ApprovalStatus, TicketSeverity
 
 EXPECTED_TABLES = {
     "approvals",
+    "approval_levels",
     "suppliers",
     "ticket_attachments",
     "ticket_history",

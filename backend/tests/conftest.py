@@ -12,6 +12,7 @@ from app.core.security import create_access_token, hash_password
 from app.main import app
 from app.models import Base
 from app.models.enums import UserRole
+from app.models.approval_level import ApprovalLevel
 from app.models.unit import Unit
 from app.models.user import User
 
@@ -116,6 +117,31 @@ def create_unit(db_session: Session):
         db_session.commit()
         db_session.refresh(unit)
         return unit
+
+    return factory
+
+
+@pytest.fixture
+def create_approval_level(db_session: Session):
+    def factory(
+        *,
+        name: str = "Engenharia ate 1000",
+        min_amount="0.00",
+        max_amount="1000.00",
+        allowed_roles: list[str] | None = None,
+        is_active: bool = True,
+    ) -> ApprovalLevel:
+        approval_level = ApprovalLevel(
+            name=name,
+            min_amount=min_amount,
+            max_amount=max_amount,
+            allowed_roles=allowed_roles or [UserRole.ENGINEERING.value, UserRole.ADMIN.value],
+            is_active=is_active,
+        )
+        db_session.add(approval_level)
+        db_session.commit()
+        db_session.refresh(approval_level)
+        return approval_level
 
     return factory
 

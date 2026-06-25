@@ -7,6 +7,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const { logout, user } = useAuth();
   const canAccessTickets = user?.role !== "supplier";
   const canAccessEngineering = user?.role === "admin" || user?.role === "engineering";
+  const canAccessApprovalLevels = user?.role === "admin";
   const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
   const canAccessUsers = user?.role === "admin";
 
@@ -50,6 +51,16 @@ export default function AppLayout({ children }: PropsWithChildren) {
                   Engenharia
                 </NavLink>
               ) : null}
+              {canAccessApprovalLevels ? (
+                <NavLink
+                  to="/approval-levels"
+                  className={({ isActive }) =>
+                    isActive ? "nav-link nav-link--active" : "nav-link"
+                  }
+                >
+                  Alcadas
+                </NavLink>
+              ) : null}
               <NavLink
                 to="/tickets/new"
                 className={({ isActive }) =>
@@ -83,9 +94,9 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </nav>
 
         <div className="shell__sidebar-card">
-          <span className="status-badge status-badge--info">Fase 7</span>
+          <span className="status-badge status-badge--info">Fase 8</span>
           <p>
-            Triagem tecnica com responsavel, SLA, criticidade e historico auditavel.
+            Triagem e aprovacao por alcada configuravel com auditoria no detalhe do chamado.
           </p>
         </div>
       </aside>

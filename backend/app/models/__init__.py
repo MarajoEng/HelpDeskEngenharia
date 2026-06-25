@@ -1,4 +1,5 @@
 from app.models.approval import Approval
+from app.models.approval_level import ApprovalLevel
 from app.models.base import Base
 from app.models.enums import (
     ApprovalStatus,
@@ -17,6 +18,7 @@ from app.models.user import User
 
 __all__ = [
     "Approval",
+    "ApprovalLevel",
     "ApprovalStatus",
     "Base",
     "PriorityLevel",

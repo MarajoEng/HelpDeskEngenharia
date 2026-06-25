@@ -12,8 +12,10 @@ from app.core.database import get_db_session
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
 from app.models.user import User
 from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse, TicketTriageRequest
+from app.schemas.approval import ApprovalDecisionRequest, ApprovalRequestCreate
 from app.schemas.ticket import TicketDetailResponse
 from app.schemas.user import UserListParams, UserListResponse
+from app.services.approval_service import decide_ticket_approval, request_ticket_approval
 from app.services.exceptions import ServiceError
 from app.services.ticket_service import (
     create_ticket_record,
@@ -139,5 +141,31 @@ def patch_ticket_triage(
 ) -> TicketDetailResponse:
     try:
         return triage_ticket(session, ticket_id, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.post("/{ticket_id}/approval-request", response_model=TicketDetailResponse)
+def create_ticket_approval_request(
+    ticket_id: int,
+    payload: ApprovalRequestCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketDetailResponse:
+    try:
+        return request_ticket_approval(session, ticket_id, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.patch("/{ticket_id}/approval-decision", response_model=TicketDetailResponse)
+def patch_ticket_approval_decision(
+    ticket_id: int,
+    payload: ApprovalDecisionRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketDetailResponse:
+    try:
+        return decide_ticket_approval(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)

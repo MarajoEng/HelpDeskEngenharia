@@ -1,6 +1,6 @@
 # Backend
 
-Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia, incluindo triagem tecnica da FASE 7.
+Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia, incluindo triagem tecnica da FASE 7 e aprovacao de orcamento por alcada configuravel na FASE 8.
 
 ## Estrutura
 
@@ -53,7 +53,8 @@ alembic upgrade head
 
 - `tickets.severity`: enum controlado com `low`, `medium`, `high` e `critical`.
 - `approvals.status`: enum controlado com `pending`, `approved`, `rejected` e `canceled`.
-- A revision atual do Alembic passa a ser `0002`.
+- `approval_levels`: tabela de alcadas por faixa de valor com roles autorizadas por nivel.
+- A revision atual do Alembic passa a ser `0003`.
 
 ## Autenticacao da FASE 3
 
@@ -109,7 +110,7 @@ Regras principais:
 - unidade precisa existir e estar ativa;
 - valores numericos negativos sao rejeitados;
 - se houver `fuel_nozzles_stopped` e `estimated_daily_loss`, a API retorna `estimated_loss_total`;
-- triagem, aprovacao, anexos, comentarios e mudanca manual de status ficam fora desta fase.
+- triagem avancada, anexos, comentarios fora do fluxo oficial e mudanca manual de status continuam fora desta fase inicial de abertura.
 
 Exemplo de criacao:
 
@@ -258,6 +259,123 @@ Bloqueios desta fase:
 Auditoria:
 
 - toda triagem gera `TicketHistory`
+
+## Aprovacao de orcamento na FASE 8
+
+### ApprovalLevel
+
+Tabela administrativa para definir a alcada de aprovacao por faixa de valor:
+
+- `name`: nome operacional da alcada
+- `min_amount`: valor minimo aceito
+- `max_amount`: valor maximo ou `null` para topo aberto
+- `allowed_roles`: lista JSON com os perfis autorizados a decidir
+- `is_active`: inativacao logica
+
+Regras:
+
+- somente `admin` cria ou edita alcadas
+- `admin`, `engineering` e `director` podem listar e visualizar alcadas
+- faixas ativas nao podem se sobrepor
+- valores negativos sao rejeitados
+
+### Endpoints de alcada
+
+- `GET /approval-levels`: lista paginada com `page`, `page_size`, `search` e `is_active`
+- `POST /approval-levels`: cria alcada
+- `GET /approval-levels/{approval_level_id}`: detalhe de uma alcada
+- `PATCH /approval-levels/{approval_level_id}`: atualiza nome, faixa, roles permitidas e estado ativo
+
+Payload de exemplo:
+
+```json
+{
+  "name": "Diretoria ate 5000",
+  "min_amount": "1000.01",
+  "max_amount": "5000.00",
+  "allowed_roles": ["director", "admin"],
+  "is_active": true
+}
+```
+
+### Seed dev/test
+
+Script opcional e idempotente para ambientes locais:
+
+```bash
+cd backend
+source .venv/bin/activate
+python scripts/seed_approval_levels.py
+```
+
+O script nao executa em `production` e cria tres niveis padrao de alcada.
+
+### Fluxo de aprovacao
+
+#### POST /tickets/{ticket_id}/approval-request
+
+Permissoes:
+
+- `admin` e `engineering`
+
+Regras:
+
+- ticket precisa estar em `triage`
+- `requires_approval` precisa ser `true`
+- o valor solicitado precisa encontrar uma alcada ativa compativel
+- nao pode existir `Approval` pendente para o ticket
+- o ticket muda para `waiting_approval`
+- `TicketHistory` e criado com a transicao
+
+Payload:
+
+```json
+{
+  "amount_requested": "3200.00",
+  "justification": "Troca completa do conjunto hidraulico."
+}
+```
+
+#### PATCH /tickets/{ticket_id}/approval-decision
+
+Permissoes:
+
+- qualquer usuario cujo `role` esteja dentro de `approval_levels.allowed_roles` da aprovacao pendente
+
+Regras:
+
+- ticket precisa estar em `waiting_approval`
+- `manager` e `supplier` nao aprovam nesta fase
+- `approved` atualiza `Approval`, `Ticket.approved_cost`, `Ticket.approved_at` e `Ticket.status=approved`
+- `rejected` atualiza `Approval` e `Ticket.status=rejected`
+- toda decisao gera `TicketHistory`
+
+Payload:
+
+```json
+{
+  "decision": "approved",
+  "amount_approved": "3000.00",
+  "justification": "Valor aprovado dentro da alcada da diretoria."
+}
+```
+
+### GET /tickets/{ticket_id}
+
+O detalhe do chamado passa a retornar `approvals` enriquecido com:
+
+- dados do solicitante e aprovador
+- alcada aplicada (`approval_level_id`, `approval_level_name`, `approval_allowed_roles`)
+- valor solicitado, valor aprovado, status, justificativa e datas
+
+## Limitacoes desta fase
+
+- sem execucao do chamado
+- sem encerramento
+- sem upload
+- sem dashboard
+- sem relatorios
+- sem Celery
 - `old_status`, `new_status`, `user_id`, `comment` e `created_at` ficam registrados
 - `triaged_at` e preenchido apenas na primeira entrada em `triage`
 
