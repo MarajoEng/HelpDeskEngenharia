@@ -5,6 +5,8 @@ import { useAuth } from "../../hooks/useAuth";
 
 export default function AppLayout({ children }: PropsWithChildren) {
   const { logout, user } = useAuth();
+  const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
+  const canAccessUsers = user?.role === "admin";
 
   return (
     <div className="shell">
@@ -26,13 +28,32 @@ export default function AppLayout({ children }: PropsWithChildren) {
           >
             Visao geral
           </NavLink>
+          {canAccessUnits ? (
+            <NavLink
+              to="/units"
+              className={({ isActive }) =>
+                isActive ? "nav-link nav-link--active" : "nav-link"
+              }
+            >
+              Unidades
+            </NavLink>
+          ) : null}
+          {canAccessUsers ? (
+            <NavLink
+              to="/users"
+              className={({ isActive }) =>
+                isActive ? "nav-link nav-link--active" : "nav-link"
+              }
+            >
+              Usuarios
+            </NavLink>
+          ) : null}
         </nav>
 
         <div className="shell__sidebar-card">
-          <span className="status-badge status-badge--info">Fase 3</span>
+          <span className="status-badge status-badge--info">Fase 4</span>
           <p>
-            Autenticacao habilitada com token, sessao do usuario e bloqueio
-            inicial por perfil.
+            Cadastro administrativo com unidades, usuarios, filtros e paginacao.
           </p>
         </div>
       </aside>

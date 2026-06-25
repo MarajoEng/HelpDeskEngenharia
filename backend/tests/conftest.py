@@ -12,6 +12,7 @@ from app.core.security import create_access_token, hash_password
 from app.main import app
 from app.models import Base
 from app.models.enums import UserRole
+from app.models.unit import Unit
 from app.models.user import User
 
 
@@ -88,6 +89,33 @@ def create_user(db_session: Session):
         db_session.commit()
         db_session.refresh(user)
         return user
+
+    return factory
+
+
+@pytest.fixture
+def create_unit(db_session: Session):
+    def factory(
+        *,
+        code: str = "U-001",
+        name: str = "Unidade Centro",
+        city: str = "Sao Paulo",
+        state: str = "SP",
+        region: str = "Sudeste",
+        is_active: bool = True,
+    ) -> Unit:
+        unit = Unit(
+            code=code,
+            name=name,
+            city=city,
+            state=state,
+            region=region,
+            is_active=is_active,
+        )
+        db_session.add(unit)
+        db_session.commit()
+        db_session.refresh(unit)
+        return unit
 
     return factory
 

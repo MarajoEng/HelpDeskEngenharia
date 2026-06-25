@@ -2,6 +2,8 @@ from fastapi import FastAPI
 
 from app.api.routes.auth_routes import router as auth_router
 from app.api.routes.health_routes import router as health_router
+from app.api.routes.unit_routes import router as unit_router
+from app.api.routes.user_routes import router as user_router
 from app.core.config import get_settings
 
 
@@ -14,6 +16,8 @@ def create_application() -> FastAPI:
     )
     application.include_router(auth_router, prefix=settings.api_prefix)
     application.include_router(health_router, prefix=settings.api_prefix)
+    application.include_router(unit_router, prefix=settings.api_prefix)
+    application.include_router(user_router, prefix=settings.api_prefix)
     return application
 
 

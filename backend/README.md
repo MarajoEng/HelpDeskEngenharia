@@ -62,6 +62,30 @@ alembic upgrade head
 - Usuario inativo nao consegue autenticar nem reutilizar token.
 - Permissoes iniciais por perfil ficam centralizadas no backend via `require_roles`.
 
+## Cadastro administrativo da FASE 4
+
+Endpoints de unidades:
+
+- `GET /units`: lista paginada com filtros `search`, `is_active`, `state`, `region`, `page`, `page_size` e `sort`.
+- `POST /units`: cria unidade. Somente `admin`.
+- `GET /units/{unit_id}`: detalhe. Permitido para `admin`, `engineering`, `director` e `manager` da propria unidade.
+- `PATCH /units/{unit_id}`: atualiza unidade. Somente `admin`.
+
+Endpoints de usuarios:
+
+- `GET /users`: lista paginada com filtros `search`, `role`, `unit_id`, `is_active`, `page`, `page_size` e `sort`. Somente `admin`.
+- `POST /users`: cria usuario com hash de senha. Somente `admin`.
+- `GET /users/{user_id}`: detalhe. Permitido para `admin` ou o proprio usuario.
+- `PATCH /users/{user_id}`: atualiza usuario. Somente `admin`.
+
+Regras principais:
+
+- nao existe exclusao fisica de unidade;
+- `code` de unidade e `email` de usuario sao unicos;
+- `manager` precisa de `unit_id`;
+- `unit_id` informado precisa existir;
+- toda listagem retorna `items`, `total`, `page`, `page_size` e `pages`.
+
 ## Criar admin de desenvolvimento
 
 Uso apenas para ambiente local e testes.
@@ -87,4 +111,4 @@ pytest
 
 ## Observacao de teste
 
-Os testes de metadata e autenticacao usam SQLite em memoria para validar estrutura, login, token e autorizacao sem depender de um PostgreSQL real.
+Os testes de metadata, autenticacao e CRUD administrativo usam SQLite em memoria para validar estrutura, login, token, autorizacao, paginacao e filtros sem depender de um PostgreSQL real.

@@ -1,12 +1,12 @@
 # Portal de Chamados Engenharia
 
-Base do projeto organizada em `backend/` e `frontend/`, com fundacao web na FASE 1, persistencia nas FASES 2 e 2.1 e autenticacao inicial na FASE 3.
+Base do projeto organizada em `backend/` e `frontend/`, com fundacao web na FASE 1, persistencia nas FASES 2 e 2.1, autenticacao na FASE 3 e cadastro administrativo na FASE 4.
 
 ## Escopo atual
 
 - Backend com FastAPI, SQLAlchemy, Alembic e migration inicial.
-- Backend com login JWT, hash de senha, usuario autenticado e autorizacao inicial por perfil.
-- Frontend com React, TypeScript, Vite, tela de login e area autenticada base.
+- Backend com login JWT, hash de senha, usuario autenticado, CRUD administrativo de unidades/usuarios e autorizacao por perfil.
+- Frontend com React, TypeScript, Vite, login, listagens paginadas e modais simples para unidades e usuarios.
 - Arquivos de configuracao local para ambiente e banco.
 
 ## Estrutura
@@ -39,3 +39,9 @@ npm run build
 
 - Crie o admin dev com `python scripts/create_admin.py` em `backend/`.
 - Use `admin@local.test` e `admin123` apenas em desenvolvimento.
+
+## Permissoes desta fase
+
+- `admin`: gerencia unidades e usuarios.
+- `engineering` e `director`: consultam unidades.
+- `manager`: consulta apenas a propria unidade no detalhe.

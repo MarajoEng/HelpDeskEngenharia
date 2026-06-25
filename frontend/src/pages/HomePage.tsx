@@ -43,19 +43,19 @@ export default function HomePage() {
         <article className="panel">
           <h3>Escopo desta fase</h3>
           <ul className="list">
-            <li>Login com email e senha.</li>
-            <li>Token JWT com expiracao.</li>
-            <li>Usuario atual protegido por bearer token.</li>
-            <li>Permissao inicial por perfil validada no backend.</li>
+            <li>CRUD administrativo de unidades com paginação e filtros.</li>
+            <li>CRUD administrativo de usuarios com hash de senha e vinculo de unidade.</li>
+            <li>Permissao de backend por perfil para leitura e gestao.</li>
+            <li>Frontend simples para operacao base sem mock fixo.</li>
           </ul>
         </article>
 
         <article className="panel">
           <h3>Limites preservados</h3>
           <ul className="list">
-            <li>Sem CRUD completo de usuarios, unidades ou chamados.</li>
-            <li>Sem dashboard operacional definitivo.</li>
-            <li>Sem reset de senha, refresh token ou OAuth.</li>
+            <li>Sem chamados, dashboard, upload ou aprovacao nesta etapa.</li>
+            <li>Sem exclusao fisica de unidades.</li>
+            <li>Sem relatorios, refresh token ou fluxo publico.</li>
           </ul>
         </article>
       </div>

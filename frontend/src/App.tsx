@@ -4,6 +4,8 @@ import AppLayout from "./components/layout/AppLayout";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import UnitsPage from "./pages/UnitsPage";
+import UsersPage from "./pages/UsersPage";
 
 function ProtectedShell() {
   const location = useLocation();
@@ -61,6 +63,8 @@ export default function App() {
         <Route path="/login" element={<LoginRoute />} />
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/units" element={<UnitsPage />} />
+          <Route path="/users" element={<UsersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
