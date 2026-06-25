@@ -86,6 +86,50 @@ Regras principais:
 - `unit_id` informado precisa existir;
 - toda listagem retorna `items`, `total`, `page`, `page_size` e `pages`.
 
+## Abertura de chamados da FASE 5
+
+Endpoints de chamados:
+
+- `POST /tickets`: cria chamado com `ticket_number` unico, `opened_at` automatico e historico inicial. Permitido para `admin`, `manager`, `engineering` e `director`.
+- `GET /tickets`: lista paginada com filtros `unit_id`, `status`, `category`, `priority`, `severity`, `requires_approval`, `opened_from`, `opened_to`, `search`, `page` e `page_size`.
+- `GET /tickets/{ticket_id}`: detalhe do chamado respeitando escopo por perfil.
+
+Permissoes principais:
+
+- `admin`, `engineering` e `director`: criam e consultam chamados de qualquer unidade ativa.
+- `manager`: cria e consulta apenas chamados da propria unidade.
+- `supplier`: bloqueado nesta fase.
+
+Regras principais:
+
+- todo chamado nasce com status `open`;
+- `ticket_number` segue o formato `ENG-YYYYMMDD-000001`;
+- `opened_by_user_id` vem do token autenticado;
+- `assigned_to_user_id` inicia nulo;
+- unidade precisa existir e estar ativa;
+- valores numericos negativos sao rejeitados;
+- se houver `fuel_nozzles_stopped` e `estimated_daily_loss`, a API retorna `estimated_loss_total`;
+- triagem, aprovacao, anexos, comentarios e mudanca manual de status ficam fora desta fase.
+
+Exemplo de criacao:
+
+```json
+{
+  "unit_id": 1,
+  "category": "fuel_pump",
+  "problem_type": "Falha de pressao",
+  "title": "Bomba principal sem operacao",
+  "description": "A bomba principal da pista 2 parou de funcionar.",
+  "priority": "high",
+  "severity": "critical",
+  "operational_impact": "Pista operando parcialmente.",
+  "fuel_nozzles_stopped": 2,
+  "estimated_daily_loss": "1500.00",
+  "estimated_cost": "8000.00",
+  "requires_approval": true
+}
+```
+
 ## Criar admin de desenvolvimento
 
 Uso apenas para ambiente local e testes.

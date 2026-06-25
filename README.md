@@ -1,12 +1,12 @@
 # Portal de Chamados Engenharia
 
-Base do projeto organizada em `backend/` e `frontend/`, com fundacao web na FASE 1, persistencia nas FASES 2 e 2.1, autenticacao na FASE 3 e cadastro administrativo na FASE 4.
+Base do projeto organizada em `backend/` e `frontend/`, com fundacao web na FASE 1, persistencia nas FASES 2 e 2.1, autenticacao na FASE 3, cadastro administrativo na FASE 4 e abertura de chamados na FASE 5.
 
 ## Escopo atual
 
 - Backend com FastAPI, SQLAlchemy, Alembic e migration inicial.
-- Backend com login JWT, hash de senha, usuario autenticado, CRUD administrativo de unidades/usuarios e autorizacao por perfil.
-- Frontend com React, TypeScript, Vite, login, listagens paginadas e modais simples para unidades e usuarios.
+- Backend com login JWT, hash de senha, usuario autenticado, CRUD administrativo de unidades/usuarios, abertura de chamados e autorizacao por perfil.
+- Frontend com React, TypeScript, Vite, login, listagens paginadas, modais simples de cadastro e fluxo inicial de chamados.
 - Arquivos de configuracao local para ambiente e banco.
 
 ## Estrutura
@@ -45,3 +45,6 @@ npm run build
 - `admin`: gerencia unidades e usuarios.
 - `engineering` e `director`: consultam unidades.
 - `manager`: consulta apenas a propria unidade no detalhe.
+- `admin`, `engineering` e `director`: abrem e consultam chamados.
+- `manager`: abre e consulta chamados apenas da propria unidade.
+- `supplier`: nao participa dos chamados nesta fase.

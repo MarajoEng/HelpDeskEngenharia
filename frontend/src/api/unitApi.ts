@@ -25,6 +25,12 @@ export function listUnits(token: string, filters: UnitFilters) {
   });
 }
 
+export function getUnitById(token: string, unitId: number) {
+  return requestJson<Unit>(`/units/${unitId}`, {
+    headers: authHeaders(token),
+  });
+}
+
 export function createUnit(token: string, payload: UnitPayload) {
   return requestJson<Unit>("/units", {
     method: "POST",

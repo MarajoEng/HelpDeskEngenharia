@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.api.dependencies import get_current_user
+from app.core.database import get_db_session
+from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
+from app.models.user import User
+from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse
+from app.services.exceptions import ServiceError
+from app.services.ticket_service import create_ticket_record, get_ticket_detail, list_ticket_records
+
+
+router = APIRouter(prefix="/tickets", tags=["tickets"])
+
+
+def _raise_service_error(error: ServiceError) -> None:
+    raise HTTPException(status_code=error.status_code, detail=error.detail)
+
+
+def _build_list_params(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    unit_id: int | None = Query(default=None, ge=1),
+    status_filter: TicketStatus | None = Query(default=None, alias="status"),
+    category: TicketCategory | None = Query(default=None),
+    priority: PriorityLevel | None = Query(default=None),
+    severity: TicketSeverity | None = Query(default=None),
+    requires_approval: bool | None = Query(default=None),
+    opened_from: datetime | None = Query(default=None),
+    opened_to: datetime | None = Query(default=None),
+    search: str | None = Query(default=None),
+) -> TicketListParams:
+    return TicketListParams(
+        page=page,
+        page_size=page_size,
+        unit_id=unit_id,
+        status=status_filter,
+        category=category,
+        priority=priority,
+        severity=severity,
+        requires_approval=requires_approval,
+        opened_from=opened_from,
+        opened_to=opened_to,
+        search=search,
+    )
+
+
+@router.post("", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
+def create_ticket(
+    payload: TicketCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketResponse:
+    try:
+        return create_ticket_record(session, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.get("", response_model=TicketListResponse)
+def read_tickets(
+    params: Annotated[TicketListParams, Depends(_build_list_params)],
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketListResponse:
+    try:
+        return list_ticket_records(session, params, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.get("/{ticket_id}", response_model=TicketResponse)
+def read_ticket(
+    ticket_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketResponse:
+    try:
+        return get_ticket_detail(session, ticket_id, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)

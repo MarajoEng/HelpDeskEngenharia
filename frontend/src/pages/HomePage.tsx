@@ -43,19 +43,19 @@ export default function HomePage() {
         <article className="panel">
           <h3>Escopo desta fase</h3>
           <ul className="list">
-            <li>CRUD administrativo de unidades com paginação e filtros.</li>
-            <li>CRUD administrativo de usuarios com hash de senha e vinculo de unidade.</li>
-            <li>Permissao de backend por perfil para leitura e gestao.</li>
-            <li>Frontend simples para operacao base sem mock fixo.</li>
+            <li>Abertura de chamados com status inicial `open` e numero unico gerado no backend.</li>
+            <li>Permissoes por perfil para criar, listar e detalhar chamados.</li>
+            <li>Historico inicial transacional no momento da abertura.</li>
+            <li>Frontend simples para abrir, listar e consultar chamados sem mock fixo.</li>
           </ul>
         </article>
 
         <article className="panel">
           <h3>Limites preservados</h3>
           <ul className="list">
-            <li>Sem chamados, dashboard, upload ou aprovacao nesta etapa.</li>
-            <li>Sem exclusao fisica de unidades.</li>
-            <li>Sem relatorios, refresh token ou fluxo publico.</li>
+            <li>Sem triagem, aprovacao, execucao, encerramento, anexos ou comentarios.</li>
+            <li>Sem dashboard, relatorios, upload ou automacoes assincronas.</li>
+            <li>Sem alteracao manual de status nesta etapa.</li>
           </ul>
         </article>
       </div>
