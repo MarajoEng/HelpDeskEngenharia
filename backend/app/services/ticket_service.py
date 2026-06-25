@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import TicketStatus, UserRole
 from app.models.ticket import Ticket
+from app.models.ticket_attachment import TicketAttachment
 from app.models.user import User
+from app.repositories.attachment_repository import count_attachments_by_ticket_and_type
 from app.repositories.supplier_repository import get_supplier_by_id as get_supplier
 from app.repositories.ticket_repository import (
     count_tickets,
@@ -22,23 +24,27 @@ from app.repositories.ticket_repository import (
 from app.repositories.unit_repository import get_unit_by_id
 from app.repositories.user_repository import count_users, get_user_by_id, list_users
 from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse, TicketTriageRequest
+from app.schemas.attachment import TicketAttachmentResponse
 from app.schemas.approval import ApprovalResponse
+from app.schemas.pagination import calculate_pages
 from app.schemas.ticket import (
+    TicketCloseRequest,
     TicketDetailResponse,
     TicketHistoryResponse,
     TicketIndicators,
-    TicketStartExecutionRequest,
     TicketProgressUpdateRequest,
+    TicketResolveRequest,
+    TicketStartExecutionRequest,
     TicketSupplierSummary,
     TicketUnitSummary,
     TicketUserSummary,
 )
-from app.schemas.pagination import calculate_pages
 from app.schemas.user import UserListParams, UserListResponse, UserResponse
 from app.services.exceptions import ConflictServiceError, NotFoundServiceError, ValidationServiceError
 
 _FINAL_STATUSES = {TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELED}
 _TRIAGE_ALLOWED_STATUSES = {TicketStatus.OPEN, TicketStatus.WAITING_UNIT, TicketStatus.TRIAGE}
+_CLOSING_ATTACHMENT_TYPE = "closing_evidence"
 
 
 class TicketNotFoundError(NotFoundServiceError):
@@ -82,6 +88,18 @@ class TicketProgressTransitionError(ConflictServiceError):
     detail = "Ticket must be in progress to update progress."
 
 
+class TicketResolveTransitionError(ConflictServiceError):
+    detail = "Ticket cannot be resolved from the current status."
+
+
+class TicketCloseTransitionError(ConflictServiceError):
+    detail = "Ticket cannot be closed from the current status."
+
+
+class MissingClosingEvidenceError(ValidationServiceError):
+    detail = "At least one closing evidence attachment is required before resolving the ticket."
+
+
 class SupplierNotFoundError(ValidationServiceError):
     detail = "Supplier not found."
 
@@ -105,11 +123,37 @@ def _calculate_estimated_loss_total(
     return estimated_daily_loss * Decimal(fuel_nozzles_stopped)
 
 
+def _hours_between(start: datetime | None, end: datetime | None) -> float | None:
+    if start is None or end is None:
+        return None
+    return round((_to_utc(end) - _to_utc(start)).total_seconds() / 3600, 2)
+
+
 def _build_ticket_number(ticket_id: int, opened_at: datetime) -> str:
     return f"ENG-{opened_at.strftime('%Y%m%d')}-{ticket_id:06d}"
 
 
+def _build_attachment_download_url(attachment_id: int) -> str:
+    return f"/attachments/{attachment_id}/download"
+
+
+def _to_attachment_response(attachment: TicketAttachment) -> TicketAttachmentResponse:
+    return TicketAttachmentResponse(
+        id=attachment.id,
+        ticket_id=attachment.ticket_id,
+        uploaded_by_user_id=attachment.uploaded_by_user_id,
+        uploaded_by_user_name=attachment.uploaded_by_user.name if attachment.uploaded_by_user else None,
+        file_url=_build_attachment_download_url(attachment.id),
+        file_type=attachment.file_type,
+        attachment_type=attachment.attachment_type,
+        created_at=attachment.created_at,
+    )
+
+
 def _to_ticket_response(ticket: Ticket) -> TicketResponse:
+    has_closing_evidence = any(
+        attachment.attachment_type == _CLOSING_ATTACHMENT_TYPE for attachment in ticket.attachments
+    )
     return TicketResponse.model_validate(
         {
             "id": ticket.id,
@@ -151,6 +195,7 @@ def _to_ticket_response(ticket: Ticket) -> TicketResponse:
             "opened_by_user_name": ticket.opened_by_user.name if ticket.opened_by_user else None,
             "assigned_to_user_name": ticket.assigned_to_user.name if ticket.assigned_to_user else None,
             "supplier_name": ticket.supplier.name if ticket.supplier else None,
+            "has_closing_evidence": has_closing_evidence,
         }
     )
 
@@ -206,6 +251,11 @@ def _calculate_indicators(ticket: Ticket) -> TicketIndicators:
             expected_utc = _to_utc(ticket.expected_resolution_at)
             execution_is_late = expected_utc < now
 
+    has_closing_evidence = any(
+        attachment.attachment_type == _CLOSING_ATTACHMENT_TYPE for attachment in ticket.attachments
+    )
+    total_hours_end = ticket.closed_at or ticket.resolved_at or now
+
     return TicketIndicators(
         estimated_loss_total=_calculate_estimated_loss_total(
             ticket.fuel_nozzles_stopped,
@@ -216,6 +266,11 @@ def _calculate_indicators(ticket: Ticket) -> TicketIndicators:
         sla_status=sla_status,
         elapsed_execution_hours=elapsed_execution_hours,
         execution_is_late=execution_is_late,
+        total_hours=_hours_between(ticket.opened_at, total_hours_end),
+        resolution_hours=_hours_between(ticket.opened_at, ticket.resolved_at),
+        closure_hours=_hours_between(ticket.resolved_at, ticket.closed_at),
+        final_cost=ticket.final_cost,
+        has_closing_evidence=has_closing_evidence,
     )
 
 
@@ -273,6 +328,8 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
     ]
     approvals = sorted(ticket.approvals, key=lambda approval: approval.created_at)
     approval_responses = [_to_approval_response(approval) for approval in approvals]
+    attachments = sorted(ticket.attachments, key=lambda attachment: attachment.created_at, reverse=True)
+    attachment_responses = [_to_attachment_response(attachment) for attachment in attachments]
 
     return TicketDetailResponse(
         id=ticket.id,
@@ -311,6 +368,7 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
         supplier=supplier_summary,
         history=history_responses,
         approvals=approval_responses,
+        attachments=attachment_responses,
         indicators=_calculate_indicators(ticket),
     )
 
@@ -350,6 +408,13 @@ def _can_view_ticket(current_user: User, ticket: Ticket) -> bool:
     if current_user.role == UserRole.MANAGER and current_user.unit_id == ticket.unit_id:
         return True
     return False
+
+
+def _ensure_ticket_can_be_viewed(current_user: User, ticket: Ticket) -> None:
+    if current_user.role == UserRole.SUPPLIER:
+        raise TicketPermissionError
+    if not _can_view_ticket(current_user, ticket):
+        raise TicketPermissionError
 
 
 def create_ticket_record(session: Session, payload: TicketCreate, current_user: User) -> TicketResponse:
@@ -462,14 +527,10 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
 
 
 def get_ticket_detail(session: Session, ticket_id: int, current_user: User) -> TicketDetailResponse:
-    if current_user.role == UserRole.SUPPLIER:
-        raise TicketPermissionError
-
     ticket = get_ticket_detail_by_id(session, ticket_id)
     if ticket is None:
         raise TicketNotFoundError
-    if not _can_view_ticket(current_user, ticket):
-        raise TicketPermissionError
+    _ensure_ticket_can_be_viewed(current_user, ticket)
     return build_ticket_detail_response(ticket)
 
 
@@ -664,6 +725,89 @@ def update_ticket_progress(
         old_status=TicketStatus.IN_PROGRESS,
         new_status=TicketStatus.IN_PROGRESS,
         comment=payload.progress_comment,
+    )
+    session.commit()
+
+    persisted_ticket = get_ticket_detail_by_id(session, ticket.id)
+    if persisted_ticket is None:
+        raise TicketNotFoundError
+    return build_ticket_detail_response(persisted_ticket)
+
+
+def resolve_ticket(
+    session: Session,
+    ticket_id: int,
+    payload: TicketResolveRequest,
+    current_user: User,
+) -> TicketDetailResponse:
+    _enforce_execution_permission(current_user)
+
+    ticket = get_ticket_for_update(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
+    if ticket.status != TicketStatus.IN_PROGRESS:
+        raise TicketResolveTransitionError
+    if count_attachments_by_ticket_and_type(
+        session,
+        ticket_id=ticket.id,
+        attachment_type=_CLOSING_ATTACHMENT_TYPE,
+    ) == 0:
+        raise MissingClosingEvidenceError
+
+    changes: dict[str, object] = {
+        "status": TicketStatus.RESOLVED,
+        "final_cost": payload.final_cost,
+    }
+    if ticket.resolved_at is None:
+        changes["resolved_at"] = datetime.now(UTC)
+
+    old_status = ticket.status
+    update_ticket(session, ticket, **changes)
+    create_ticket_history(
+        session,
+        ticket_id=ticket.id,
+        user_id=current_user.id,
+        old_status=old_status,
+        new_status=TicketStatus.RESOLVED,
+        comment=payload.solution_description,
+    )
+    session.commit()
+
+    persisted_ticket = get_ticket_detail_by_id(session, ticket.id)
+    if persisted_ticket is None:
+        raise TicketNotFoundError
+    return build_ticket_detail_response(persisted_ticket)
+
+
+def close_ticket(
+    session: Session,
+    ticket_id: int,
+    payload: TicketCloseRequest,
+    current_user: User,
+) -> TicketDetailResponse:
+    _enforce_execution_permission(current_user)
+
+    ticket = get_ticket_for_update(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
+    if ticket.status != TicketStatus.RESOLVED:
+        raise TicketCloseTransitionError
+
+    changes: dict[str, object] = {
+        "status": TicketStatus.CLOSED,
+    }
+    if ticket.closed_at is None:
+        changes["closed_at"] = datetime.now(UTC)
+
+    old_status = ticket.status
+    update_ticket(session, ticket, **changes)
+    create_ticket_history(
+        session,
+        ticket_id=ticket.id,
+        user_id=current_user.id,
+        old_status=old_status,
+        new_status=TicketStatus.CLOSED,
+        comment=payload.close_comment,
     )
     session.commit()
 

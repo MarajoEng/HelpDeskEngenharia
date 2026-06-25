@@ -14,11 +14,12 @@ def test_alembic_has_initial_revision() -> None:
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "0004"
+    assert script.get_current_head() == "0005"
     assert script.get_revision("0001") is not None
     assert script.get_revision("0002") is not None
     assert script.get_revision("0003") is not None
     assert script.get_revision("0004") is not None
+    assert script.get_revision("0005") is not None
 
 
 def test_alembic_env_exposes_project_metadata(monkeypatch) -> None:

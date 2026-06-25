@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-dev"
     access_token_expire_minutes: int = 60
     algorithm: str = "HS256"
+    max_upload_size_mb: int = 10
+    upload_dir: str = "uploads"
+    redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/1"
+    sla_monitor_lookback_days: int = 30
+    sla_alert_repeat_hours: int = 6
 
     model_config = SettingsConfigDict(
         env_file=".env",

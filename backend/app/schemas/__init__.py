@@ -1,3 +1,15 @@
+from app.schemas.alert import (
+    RunSlaMonitorResponse,
+    TicketAlertListParams,
+    TicketAlertListResponse,
+    TicketAlertResponse,
+)
+from app.schemas.attachment import (
+    TicketAttachmentCreateRequest,
+    TicketAttachmentListParams,
+    TicketAttachmentListResponse,
+    TicketAttachmentResponse,
+)
 from app.schemas.approval import (
     ApprovalDecisionRequest,
     ApprovalLevelCreate,
@@ -9,16 +21,32 @@ from app.schemas.approval import (
     ApprovalResponse,
 )
 from app.schemas.auth import CurrentUserResponse, LoginRequest, TokenResponse, UserCreateInternal
+from app.schemas.dashboard import (
+    DashboardOverviewParams,
+    DashboardOverviewResponse,
+    ExecutiveCards,
+    LateTicketsPreviewItem,
+    SlaSummary,
+    TicketsByCategoryItem,
+    TicketsByPriorityItem,
+    TicketsBySeverityItem,
+    TicketsByStatusItem,
+    UnitCostRankingItem,
+    UnitFuelNozzlesRankingItem,
+    UnitTicketsRankingItem,
+)
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.supplier import SupplierCreate, SupplierListParams, SupplierListResponse, SupplierResponse, SupplierUpdate
 from app.schemas.ticket import (
     TicketCreate,
+    TicketCloseRequest,
     TicketDetailResponse,
     TicketHistoryResponse,
     TicketIndicators,
     TicketListParams,
     TicketListResponse,
     TicketProgressUpdateRequest,
+    TicketResolveRequest,
     TicketResponse,
     TicketStartExecutionRequest,
     TicketSupplierSummary,
@@ -30,6 +58,10 @@ from app.schemas.unit import UnitCreate, UnitListParams, UnitListResponse, UnitR
 from app.schemas.user import UserCreate, UserListParams, UserListResponse, UserResponse, UserUpdate
 
 __all__ = [
+    "RunSlaMonitorResponse",
+    "TicketAlertListParams",
+    "TicketAlertListResponse",
+    "TicketAlertResponse",
     "ApprovalDecisionRequest",
     "ApprovalLevelCreate",
     "ApprovalLevelListParams",
@@ -39,13 +71,27 @@ __all__ = [
     "ApprovalRequestCreate",
     "ApprovalResponse",
     "CurrentUserResponse",
+    "DashboardOverviewParams",
+    "DashboardOverviewResponse",
+    "ExecutiveCards",
+    "LateTicketsPreviewItem",
     "LoginRequest",
     "PaginatedResponse",
+    "SlaSummary",
     "SupplierCreate",
     "SupplierListParams",
     "SupplierListResponse",
     "SupplierResponse",
     "SupplierUpdate",
+    "TicketsByCategoryItem",
+    "TicketsByPriorityItem",
+    "TicketsBySeverityItem",
+    "TicketsByStatusItem",
+    "TicketAttachmentCreateRequest",
+    "TicketAttachmentListParams",
+    "TicketAttachmentListResponse",
+    "TicketAttachmentResponse",
+    "TicketCloseRequest",
     "TicketCreate",
     "TicketDetailResponse",
     "TicketHistoryResponse",
@@ -53,6 +99,7 @@ __all__ = [
     "TicketListParams",
     "TicketListResponse",
     "TicketProgressUpdateRequest",
+    "TicketResolveRequest",
     "TicketResponse",
     "TicketStartExecutionRequest",
     "TicketSupplierSummary",
@@ -61,9 +108,12 @@ __all__ = [
     "TicketUserSummary",
     "TokenResponse",
     "UnitCreate",
+    "UnitCostRankingItem",
+    "UnitFuelNozzlesRankingItem",
     "UnitListParams",
     "UnitListResponse",
     "UnitResponse",
+    "UnitTicketsRankingItem",
     "UnitUpdate",
     "UserCreate",
     "UserCreateInternal",

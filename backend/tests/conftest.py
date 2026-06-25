@@ -18,10 +18,12 @@ from app.models.user import User
 
 
 @pytest.fixture(autouse=True)
-def auth_settings(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def auth_settings(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Generator[None, None, None]:
     monkeypatch.setenv("SECRET_KEY", "test-secret-key")
     monkeypatch.setenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     monkeypatch.setenv("ALGORITHM", "HS256")
+    monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "1")
+    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path / "uploads"))
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

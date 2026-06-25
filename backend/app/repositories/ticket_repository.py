@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.models.ticket_attachment import TicketAttachment
 from app.models.enums import TicketStatus
 from app.models.ticket import Ticket
 from app.models.approval import Approval
@@ -27,6 +28,7 @@ def _ticket_base_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.opened_by_user),
         selectinload(Ticket.assigned_to_user),
         selectinload(Ticket.supplier),
+        selectinload(Ticket.attachments),
     )
 
 
@@ -37,6 +39,7 @@ def _ticket_detail_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.assigned_to_user),
         selectinload(Ticket.supplier),
         selectinload(Ticket.history_entries).selectinload(TicketHistory.user),
+        selectinload(Ticket.attachments).selectinload(TicketAttachment.uploaded_by_user),
         selectinload(Ticket.approvals).selectinload(Approval.requested_by_user),
         selectinload(Ticket.approvals).selectinload(Approval.approved_by_user),
         selectinload(Ticket.approvals).selectinload(Approval.approval_level),

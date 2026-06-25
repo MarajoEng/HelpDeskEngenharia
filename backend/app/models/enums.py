@@ -55,3 +55,15 @@ class ApprovalStatus(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     CANCELED = "canceled"
+
+
+class AlertType(str, Enum):
+    SLA_LATE = "sla_late"
+    SLA_DUE_SOON = "sla_due_soon"
+    EXECUTION_LATE = "execution_late"
+
+
+class AlertSeverity(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"

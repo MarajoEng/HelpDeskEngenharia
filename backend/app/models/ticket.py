@@ -104,3 +104,7 @@ class Ticket(TimestampMixin, Base):
         back_populates="ticket",
         cascade="all, delete-orphan",
     )
+    alerts: Mapped[list["TicketAlert"]] = relationship(
+        back_populates="ticket",
+        cascade="all, delete-orphan",
+    )

@@ -1,6 +1,6 @@
 # Backend
 
-Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia, incluindo triagem tecnica da FASE 7 e aprovacao de orcamento por alcada configuravel na FASE 8.
+Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia, incluindo triagem tecnica da FASE 7, aprovacao da FASE 8, execucao da FASE 9, encerramento auditavel da FASE 10 e dashboard operacional da FASE 11.
 
 ## Estrutura
 
@@ -22,6 +22,8 @@ DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/helpdesk_enge
 SECRET_KEY=change-me-in-dev
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 ALGORITHM=HS256
+MAX_UPLOAD_SIZE_MB=10
+UPLOAD_DIR=uploads
 ```
 
 ## Instalar dependencias
@@ -48,6 +50,8 @@ cd backend
 source .venv/bin/activate
 alembic upgrade head
 ```
+
+Nao ha migration nova na FASE 10: `ticket_attachments` ja atende o contrato de evidencia e o Alembic continua em `head`.
 
 ## Contratos da FASE 2.1
 
@@ -153,6 +157,122 @@ cd backend
 source .venv/bin/activate
 pytest
 ```
+
+## Encerramento com evidencia da FASE 10
+
+Endpoints:
+
+- `POST /tickets/{ticket_id}/attachments`
+- `GET /tickets/{ticket_id}/attachments`
+- `GET /attachments/{attachment_id}/download`
+- `PATCH /tickets/{ticket_id}/resolve`
+- `PATCH /tickets/{ticket_id}/close`
+
+Permissoes:
+
+- Upload: `admin`, `engineering` e `manager` da propria unidade
+- Listagem/download: `admin`, `engineering`, `director` e `manager` da propria unidade
+- Resolucao/fechamento: `admin` e `engineering`
+- `supplier`: bloqueado em anexos, resolucao e fechamento
+
+Tipos de anexo:
+
+- `opening_evidence`
+- `progress_evidence`
+- `closing_evidence`
+
+Upload local:
+
+- tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`
+- limite padrao: `MAX_UPLOAD_SIZE_MB=10`
+- diretorio local: `UPLOAD_DIR=uploads`
+- `file_url` exposto ao cliente sempre aponta para `/attachments/{attachment_id}/download`
+
+Payload de resolucao:
+
+```json
+{
+  "solution_description": "Troca da conexao principal, teste hidraulico e liberacao operacional.",
+  "final_cost": "489.90"
+}
+```
+
+Payload de fechamento:
+
+```json
+{
+  "close_comment": "Servico auditado e aceite final registrado pela engenharia."
+}
+```
+
+Regras:
+
+- resolver exige status `in_progress`, `solution_description`, `final_cost >= 0` e pelo menos uma `closing_evidence`
+- fechar exige status `resolved` e `close_comment`
+- toda transicao gera `TicketHistory`
+- o detalhe do chamado retorna `attachments`, `total_hours`, `resolution_hours`, `closure_hours`, `final_cost` e `has_closing_evidence`
+
+Limitacoes preservadas:
+
+- sem storage externo
+- sem relatorios
+- sem Celery
+- sem notificacoes
+
+## Dashboard operacional da FASE 11
+
+### GET /dashboard/overview
+
+Permissoes:
+
+- `admin`, `engineering` e `director`: acesso a toda a rede
+- `manager`: acesso apenas a dados da propria unidade
+- `supplier`: bloqueado
+
+Filtros disponiveis:
+
+- `date_from`
+- `date_to`
+- `unit_id`
+- `region`
+- `status`
+- `category`
+
+Indicadores principais:
+
+- contagem total e por status
+- `late_tickets`
+- `critical_tickets`
+- `tickets_with_fuel_nozzles_stopped`
+- `total_fuel_nozzles_stopped`
+- `estimated_daily_loss_total`
+- `estimated_cost_total`
+- `approved_cost_total`
+- `final_cost_total`
+- `average_resolution_hours`
+- `average_closure_hours`
+- `sla_compliance_rate`
+
+Blocos adicionais:
+
+- `executive_cards`
+- `ranking_units_by_tickets`
+- `ranking_units_by_cost`
+- `ranking_units_by_fuel_nozzles`
+- `tickets_by_status`
+- `tickets_by_category`
+- `tickets_by_priority`
+- `tickets_by_severity`
+- `sla_summary`
+- `late_tickets_preview`
+
+Regras:
+
+- agregacoes feitas no banco com SQLAlchemy
+- previews e rankings limitados a 10
+- sem `SELECT *`
+- `manager` nao pode consultar `unit_id` diferente da propria unidade
+- se nao houver dados, o endpoint retorna zeros e listas vazias
 
 ## Listagem e detalhe da FASE 6
 

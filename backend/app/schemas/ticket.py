@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
+from app.schemas.attachment import TicketAttachmentResponse
 from app.schemas.approval import ApprovalResponse
 from app.schemas.pagination import PaginatedResponse, PageParams
 
@@ -82,6 +83,11 @@ class TicketIndicators(BaseModel):
     sla_status: Literal["on_track", "late", "no_sla", "closed"]
     elapsed_execution_hours: float | None = None
     execution_is_late: bool = False
+    total_hours: float | None = None
+    resolution_hours: float | None = None
+    closure_hours: float | None = None
+    final_cost: Decimal | None = None
+    has_closing_evidence: bool = False
 
 
 class TicketResponse(BaseModel):
@@ -123,6 +129,7 @@ class TicketResponse(BaseModel):
     opened_by_user_name: str | None = None
     assigned_to_user_name: str | None = None
     supplier_name: str | None = None
+    has_closing_evidence: bool = False
 
 
 class TicketDetailResponse(BaseModel):
@@ -164,6 +171,7 @@ class TicketDetailResponse(BaseModel):
     supplier: TicketSupplierSummary | None
     history: list[TicketHistoryResponse]
     approvals: list[ApprovalResponse]
+    attachments: list[TicketAttachmentResponse]
     indicators: TicketIndicators
 
 
@@ -273,4 +281,29 @@ class TicketProgressUpdateRequest(BaseModel):
         normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
         if normalized <= datetime.now(UTC):
             raise ValueError("Expected resolution date cannot be in the past.")
+        return normalized
+
+
+class TicketResolveRequest(BaseModel):
+    solution_description: str = Field(min_length=1)
+    final_cost: Decimal = Field(ge=0, decimal_places=2)
+
+    @field_validator("solution_description")
+    @classmethod
+    def strip_solution_description(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Solution description is required.")
+        return normalized
+
+
+class TicketCloseRequest(BaseModel):
+    close_comment: str = Field(min_length=1)
+
+    @field_validator("close_comment")
+    @classmethod
+    def strip_close_comment(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Close comment is required.")
         return normalized

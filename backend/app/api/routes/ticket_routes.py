@@ -13,15 +13,23 @@ from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, Tick
 from app.models.user import User
 from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse, TicketTriageRequest
 from app.schemas.approval import ApprovalDecisionRequest, ApprovalRequestCreate
-from app.schemas.ticket import TicketDetailResponse, TicketStartExecutionRequest, TicketProgressUpdateRequest
+from app.schemas.ticket import (
+    TicketCloseRequest,
+    TicketDetailResponse,
+    TicketProgressUpdateRequest,
+    TicketResolveRequest,
+    TicketStartExecutionRequest,
+)
 from app.schemas.user import UserListParams, UserListResponse
 from app.services.approval_service import decide_ticket_approval, request_ticket_approval
 from app.services.exceptions import ServiceError
 from app.services.ticket_service import (
+    close_ticket,
     create_ticket_record,
     get_ticket_detail,
     list_ticket_records,
     list_ticket_triage_assignees,
+    resolve_ticket,
     start_ticket_execution,
     triage_ticket,
     update_ticket_progress,
@@ -195,5 +203,31 @@ def patch_ticket_progress(
 ) -> TicketDetailResponse:
     try:
         return update_ticket_progress(session, ticket_id, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.patch("/{ticket_id}/resolve", response_model=TicketDetailResponse)
+def patch_ticket_resolve(
+    ticket_id: int,
+    payload: TicketResolveRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketDetailResponse:
+    try:
+        return resolve_ticket(session, ticket_id, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.patch("/{ticket_id}/close", response_model=TicketDetailResponse)
+def patch_ticket_close(
+    ticket_id: int,
+    payload: TicketCloseRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketDetailResponse:
+    try:
+        return close_ticket(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
