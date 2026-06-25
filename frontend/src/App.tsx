@@ -9,6 +9,7 @@ import EngineeringQueuePage from "./pages/EngineeringQueuePage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import AlertsPage from "./pages/AlertsPage";
+import AuditLogsPage from "./pages/AuditLogsPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import TicketsPage from "./pages/TicketsPage";
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="/tickets/new" element={<CreateTicketPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/audit-logs" element={<AuditLogsPage />} />
           <Route path="/suppliers" element={<SuppliersPage />} />
           <Route path="/units" element={<UnitsPage />} />
           <Route path="/users" element={<UsersPage />} />

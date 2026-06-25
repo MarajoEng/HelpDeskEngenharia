@@ -25,8 +25,11 @@ def auth_settings(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Generator[None, 
     monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "1")
     monkeypatch.setenv("UPLOAD_DIR", str(tmp_path / "uploads"))
     get_settings.cache_clear()
+    from app.core.rate_limit import login_rate_limiter
+    login_rate_limiter.clear_all()
     yield
     get_settings.cache_clear()
+    login_rate_limiter.clear_all()
 
 
 @pytest.fixture

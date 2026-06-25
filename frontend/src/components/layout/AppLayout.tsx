@@ -12,6 +12,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
   const canAccessSuppliers = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
   const canAccessAlerts = user?.role !== "supplier";
+  const canAccessAuditLogs = user?.role === "admin";
   const canAccessUsers = user?.role === "admin";
 
   return (
@@ -116,12 +117,22 @@ export default function AppLayout({ children }: PropsWithChildren) {
               Usuarios
             </NavLink>
           ) : null}
+          {canAccessAuditLogs ? (
+            <NavLink
+              to="/audit-logs"
+              className={({ isActive }) =>
+                isActive ? "nav-link nav-link--active" : "nav-link"
+              }
+            >
+              Auditoria
+            </NavLink>
+          ) : null}
         </nav>
 
         <div className="shell__sidebar-card">
-          <span className="status-badge status-badge--info">Fase 11</span>
+          <span className="status-badge status-badge--info">Fase 13</span>
           <p>
-            Dashboard operacional com SLA, custos, unidades criticas e indicadores reais da rede.
+            Auditoria completa, seguranca de headers, rate limiting e protecao de uploads.
           </p>
         </div>
       </aside>

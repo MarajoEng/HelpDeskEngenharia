@@ -35,6 +35,12 @@ _ALLOWED_UPLOAD_TYPES = {
     "application/pdf": ".pdf",
 }
 
+_DANGEROUS_EXTENSIONS = {
+    ".exe", ".sh", ".bat", ".cmd", ".php", ".php3", ".php4", ".php5",
+    ".phtml", ".asp", ".aspx", ".jsp", ".py", ".rb", ".pl", ".cgi",
+    ".jar", ".war", ".ear", ".msi", ".deb", ".rpm", ".ps1", ".vbs",
+}
+
 
 class AttachmentNotFoundError(NotFoundServiceError):
     detail = "Attachment not found."
@@ -90,7 +96,11 @@ def _get_upload_root() -> Path:
 
 
 def _resolve_storage_path(stored_file_url: str) -> Path:
-    return _get_upload_root() / Path(stored_file_url)
+    upload_root = _get_upload_root().resolve()
+    resolved = (upload_root / Path(stored_file_url)).resolve()
+    if not str(resolved).startswith(str(upload_root)):
+        raise InvalidAttachmentFileTypeError
+    return resolved
 
 
 def _assert_attachment_type(attachment_type: str) -> str:
@@ -127,6 +137,11 @@ def _validate_upload_file(upload: UploadFile) -> tuple[str, bytes]:
     content_type = (upload.content_type or "").strip().lower()
     if content_type not in _ALLOWED_UPLOAD_TYPES:
         raise InvalidAttachmentFileTypeError
+
+    if upload.filename:
+        ext = Path(upload.filename).suffix.lower()
+        if ext in _DANGEROUS_EXTENSIONS:
+            raise InvalidAttachmentFileTypeError
 
     file_bytes = upload.file.read()
     if not file_bytes:

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
@@ -22,6 +22,7 @@ from app.schemas.ticket import (
 )
 from app.schemas.user import UserListParams, UserListResponse
 from app.services.approval_service import decide_ticket_approval, request_ticket_approval
+from app.services.audit_service import log_action
 from app.services.exceptions import ServiceError
 from app.services.ticket_service import (
     close_ticket,
@@ -97,13 +98,18 @@ def _build_triage_assignees_params(
 @router.post("", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 def create_ticket(
     payload: TicketCreate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketResponse:
     try:
-        return create_ticket_record(session, payload, current_user)
+        result = create_ticket_record(session, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="ticket_created", entity_type="ticket", entity_id=result.id, request=request, metadata={"category": payload.category.value, "priority": payload.priority.value})
+    session.commit()
+    return result
 
 
 @router.get("", response_model=TicketListResponse)
@@ -146,88 +152,123 @@ def read_ticket(
 def patch_ticket_triage(
     ticket_id: int,
     payload: TicketTriageRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketDetailResponse:
     try:
-        return triage_ticket(session, ticket_id, payload, current_user)
+        result = triage_ticket(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="ticket_triaged", entity_type="ticket", entity_id=ticket_id, request=request)
+    session.commit()
+    return result
 
 
 @router.post("/{ticket_id}/approval-request", response_model=TicketDetailResponse)
 def create_ticket_approval_request(
     ticket_id: int,
     payload: ApprovalRequestCreate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketDetailResponse:
     try:
-        return request_ticket_approval(session, ticket_id, payload, current_user)
+        result = request_ticket_approval(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="approval_requested", entity_type="ticket", entity_id=ticket_id, request=request)
+    session.commit()
+    return result
 
 
 @router.patch("/{ticket_id}/approval-decision", response_model=TicketDetailResponse)
 def patch_ticket_approval_decision(
     ticket_id: int,
     payload: ApprovalDecisionRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketDetailResponse:
     try:
-        return decide_ticket_approval(session, ticket_id, payload, current_user)
+        result = decide_ticket_approval(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="approval_decided", entity_type="ticket", entity_id=ticket_id, request=request, metadata={"decision": str(payload.decision)})
+    session.commit()
+    return result
 
 
 @router.patch("/{ticket_id}/start-execution", response_model=TicketDetailResponse)
 def patch_ticket_start_execution(
     ticket_id: int,
     payload: TicketStartExecutionRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketDetailResponse:
     try:
-        return start_ticket_execution(session, ticket_id, payload, current_user)
+        result = start_ticket_execution(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="execution_started", entity_type="ticket", entity_id=ticket_id, request=request)
+    session.commit()
+    return result
 
 
 @router.patch("/{ticket_id}/progress", response_model=TicketDetailResponse)
 def patch_ticket_progress(
     ticket_id: int,
     payload: TicketProgressUpdateRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketDetailResponse:
     try:
-        return update_ticket_progress(session, ticket_id, payload, current_user)
+        result = update_ticket_progress(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="progress_updated", entity_type="ticket", entity_id=ticket_id, request=request)
+    session.commit()
+    return result
 
 
 @router.patch("/{ticket_id}/resolve", response_model=TicketDetailResponse)
 def patch_ticket_resolve(
     ticket_id: int,
     payload: TicketResolveRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketDetailResponse:
     try:
-        return resolve_ticket(session, ticket_id, payload, current_user)
+        result = resolve_ticket(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="ticket_resolved", entity_type="ticket", entity_id=ticket_id, request=request)
+    session.commit()
+    return result
 
 
 @router.patch("/{ticket_id}/close", response_model=TicketDetailResponse)
 def patch_ticket_close(
     ticket_id: int,
     payload: TicketCloseRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketDetailResponse:
     try:
-        return close_ticket(session, ticket_id, payload, current_user)
+        result = close_ticket(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="ticket_closed", entity_type="ticket", entity_id=ticket_id, request=request)
+    session.commit()
+    return result

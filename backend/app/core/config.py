@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/1"
     sla_monitor_lookback_days: int = 30
     sla_alert_repeat_hours: int = 6
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    login_rate_limit_attempts: int = 5
+    login_rate_limit_window_seconds: int = 300
 
     model_config = SettingsConfigDict(
         env_file=".env",

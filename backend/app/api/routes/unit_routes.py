@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_roles
@@ -10,6 +10,7 @@ from app.core.database import get_db_session
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas import UnitCreate, UnitListParams, UnitListResponse, UnitResponse, UnitUpdate
+from app.services.audit_service import log_action
 from app.services.exceptions import ServiceError
 from app.services.unit_service import create_unit_record, get_unit_or_404, list_unit_records, update_unit_record
 
@@ -53,7 +54,8 @@ def read_units(
 @router.post("", response_model=UnitResponse, status_code=status.HTTP_201_CREATED)
 def create_unit(
     payload: UnitCreate,
-    _: User = Depends(require_roles(UserRole.ADMIN)),
+    request: Request,
+    actor: User = Depends(require_roles(UserRole.ADMIN)),
     session: Session = Depends(get_db_session),
 ) -> UnitResponse:
     try:
@@ -61,6 +63,8 @@ def create_unit(
     except ServiceError as error:
         _raise_service_error(error)
 
+    log_action(session, actor_user=actor, action="unit_created", entity_type="unit", entity_id=unit.id, request=request, metadata={"code": unit.code, "name": unit.name})
+    session.commit()
     return UnitResponse.model_validate(unit)
 
 
@@ -88,7 +92,8 @@ def read_unit(
 def patch_unit(
     unit_id: int,
     payload: UnitUpdate,
-    _: User = Depends(require_roles(UserRole.ADMIN)),
+    request: Request,
+    actor: User = Depends(require_roles(UserRole.ADMIN)),
     session: Session = Depends(get_db_session),
 ) -> UnitResponse:
     try:
@@ -96,4 +101,6 @@ def patch_unit(
     except ServiceError as error:
         _raise_service_error(error)
 
+    log_action(session, actor_user=actor, action="unit_updated", entity_type="unit", entity_id=unit.id, request=request, metadata={"code": unit.code})
+    session.commit()
     return UnitResponse.model_validate(unit)

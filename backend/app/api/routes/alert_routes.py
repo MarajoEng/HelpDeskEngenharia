@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db_session
-from app.models.enums import AlertSeverity, AlertType
+from app.models.enums import AlertSeverity, AlertType, UserRole
 from app.models.user import User
 from app.schemas.alert import (
     RunSlaMonitorResponse,
@@ -21,6 +21,7 @@ from app.services.alert_service import (
     mark_all_read_record,
     run_sla_monitoring,
 )
+from app.services.audit_service import log_action
 from app.services.exceptions import ServiceError
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -64,11 +65,13 @@ def read_alerts(
 
 @router.patch("/read-all")
 def mark_read_all(
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> dict:
     try:
         count = mark_all_read_record(session, current_user)
+        log_action(session, actor_user=current_user, action="alerts_marked_all_read", entity_type="alert", request=request, metadata={"count": count})
         session.commit()
         return {"marked_read": count}
     except ServiceError as error:
@@ -78,11 +81,13 @@ def mark_read_all(
 @router.patch("/{alert_id}/read", response_model=TicketAlertResponse)
 def mark_read(
     alert_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketAlertResponse:
     try:
         result = mark_alert_read_record(session, alert_id, current_user)
+        log_action(session, actor_user=current_user, action="alert_marked_read", entity_type="alert", entity_id=alert_id, request=request)
         session.commit()
         return result
     except ServiceError as error:
@@ -91,16 +96,15 @@ def mark_read(
 
 @router.post("/run-sla-monitor", response_model=RunSlaMonitorResponse)
 def trigger_sla_monitor(
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> RunSlaMonitorResponse:
-    from app.services.alert_service import AlertPermissionError
-    from app.models.enums import UserRole
-
     if current_user.role not in {UserRole.ADMIN, UserRole.ENGINEERING}:
         raise HTTPException(status_code=403, detail="Insufficient permissions.")
     try:
         result = run_sla_monitoring(session)
+        log_action(session, actor_user=current_user, action="sla_monitor_run", entity_type="alert", request=request, metadata={"created_alerts": result.get("created_alerts", 0)})
         session.commit()
         return RunSlaMonitorResponse(**result)
     except ServiceError as error:

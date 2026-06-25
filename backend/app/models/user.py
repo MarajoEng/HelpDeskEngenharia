@@ -50,3 +50,7 @@ class User(TimestampMixin, Base):
         back_populates="approved_by_user",
         foreign_keys="Approval.approved_by_user_id",
     )
+    audit_logs: Mapped[list["AuditLog"]] = relationship(  # type: ignore[name-defined]
+        back_populates="actor",
+        foreign_keys="AuditLog.actor_user_id",
+    )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from app.schemas.attachment import (
     TicketAttachmentResponse,
 )
 from app.services.attachment_service import get_attachment_download, list_ticket_attachments, upload_ticket_attachment
+from app.services.audit_service import log_action
 from app.services.exceptions import ServiceError
 
 router = APIRouter(tags=["attachments"])
@@ -34,13 +35,14 @@ def _build_attachment_list_params(
 @router.post("/tickets/{ticket_id}/attachments", response_model=TicketAttachmentResponse, status_code=201)
 def create_ticket_attachment(
     ticket_id: int,
+    request: Request,
     attachment_type: str = Form(...),
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
 ) -> TicketAttachmentResponse:
     try:
-        return upload_ticket_attachment(
+        result = upload_ticket_attachment(
             session,
             ticket_id=ticket_id,
             attachment_type=attachment_type,
@@ -49,6 +51,10 @@ def create_ticket_attachment(
         )
     except ServiceError as error:
         _raise_service_error(error)
+
+    log_action(session, actor_user=current_user, action="attachment_uploaded", entity_type="ticket", entity_id=ticket_id, request=request, metadata={"attachment_type": attachment_type})
+    session.commit()
+    return result
 
 
 @router.get("/tickets/{ticket_id}/attachments", response_model=TicketAttachmentListResponse)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_roles
@@ -10,6 +10,7 @@ from app.core.database import get_db_session
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas import UserCreate, UserListParams, UserListResponse, UserResponse, UserUpdate
+from app.services.audit_service import log_action
 from app.services.exceptions import ServiceError
 from app.services.user_service import create_user_record, get_user_or_404, list_user_records, update_user_record
 
@@ -53,7 +54,8 @@ def read_users(
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreate,
-    _: User = Depends(require_roles(UserRole.ADMIN)),
+    request: Request,
+    actor: User = Depends(require_roles(UserRole.ADMIN)),
     session: Session = Depends(get_db_session),
 ) -> UserResponse:
     try:
@@ -61,6 +63,8 @@ def create_user(
     except ServiceError as error:
         _raise_service_error(error)
 
+    log_action(session, actor_user=actor, action="user_created", entity_type="user", entity_id=user.id, request=request, metadata={"email": user.email, "role": user.role.value})
+    session.commit()
     return UserResponse.model_validate(user)
 
 
@@ -85,7 +89,8 @@ def read_user(
 def patch_user(
     user_id: int,
     payload: UserUpdate,
-    _: User = Depends(require_roles(UserRole.ADMIN)),
+    request: Request,
+    actor: User = Depends(require_roles(UserRole.ADMIN)),
     session: Session = Depends(get_db_session),
 ) -> UserResponse:
     try:
@@ -93,4 +98,6 @@ def patch_user(
     except ServiceError as error:
         _raise_service_error(error)
 
+    log_action(session, actor_user=actor, action="user_updated", entity_type="user", entity_id=user.id, request=request, metadata={"email": user.email})
+    session.commit()
     return UserResponse.model_validate(user)
