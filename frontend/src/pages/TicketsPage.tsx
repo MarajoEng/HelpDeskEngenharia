@@ -9,7 +9,7 @@ import type { Unit } from "../types/unit";
 
 const initialFilters: TicketFilters = {
   page: 1,
-  page_size: 10,
+  page_size: 20,
   unit_id: "",
   status: "",
   category: "",
@@ -17,17 +17,21 @@ const initialFilters: TicketFilters = {
   severity: "",
   requires_approval: "",
   search: "",
+  only_late: "",
+  has_fuel_nozzles_stopped: "",
+  min_estimated_cost: "",
+  max_estimated_cost: "",
 };
 
 const statusOptions: Array<{ value: TicketStatus; label: string }> = [
   { value: "open", label: "Aberto" },
   { value: "triage", label: "Triagem" },
-  { value: "waiting_approval", label: "Aguardando aprovacao" },
+  { value: "waiting_approval", label: "Ag. aprovacao" },
   { value: "approved", label: "Aprovado" },
   { value: "rejected", label: "Rejeitado" },
   { value: "in_progress", label: "Em execucao" },
-  { value: "waiting_supplier", label: "Aguardando fornecedor" },
-  { value: "waiting_unit", label: "Aguardando unidade" },
+  { value: "waiting_supplier", label: "Ag. fornecedor" },
+  { value: "waiting_unit", label: "Ag. unidade" },
   { value: "resolved", label: "Resolvido" },
   { value: "closed", label: "Encerrado" },
   { value: "canceled", label: "Cancelado" },
@@ -60,21 +64,48 @@ const severityOptions: Array<{ value: TicketSeverity; label: string }> = [
   { value: "critical", label: "Critica" },
 ];
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString("pt-BR");
-}
+const STATUS_LABELS: Record<TicketStatus, string> = {
+  open: "Aberto",
+  triage: "Triagem",
+  waiting_approval: "Ag. aprovacao",
+  approved: "Aprovado",
+  rejected: "Rejeitado",
+  in_progress: "Em execucao",
+  waiting_supplier: "Ag. fornecedor",
+  waiting_unit: "Ag. unidade",
+  resolved: "Resolvido",
+  closed: "Encerrado",
+  canceled: "Cancelado",
+};
 
-function labelFromValue(value: string) {
-  return value.split("_").join(" ");
+const PRIORITY_LABELS: Record<TicketPriority, string> = {
+  low: "Baixa",
+  medium: "Media",
+  high: "Alta",
+  critical: "Critica",
+};
+
+const SEVERITY_LABELS: Record<TicketSeverity, string> = {
+  low: "Baixa",
+  medium: "Media",
+  high: "Alta",
+  critical: "Critica",
+};
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function statusClass(status: TicketStatus) {
-  if (status === "open") {
-    return "status-badge status-badge--info";
-  }
-  if (status === "resolved" || status === "closed" || status === "approved") {
-    return "status-badge status-badge--success";
-  }
+  if (status === "open") return "status-badge status-badge--info";
+  if (status === "resolved" || status === "closed" || status === "approved") return "status-badge status-badge--success";
+  if (status === "rejected" || status === "canceled") return "status-badge status-badge--danger";
   return "status-badge status-badge--muted";
 }
 
@@ -91,10 +122,15 @@ function unitLabel(ticket: Ticket, units: Unit[]) {
     return [ticket.unit_code, ticket.unit_name].filter(Boolean).join(" · ");
   }
   const unit = units.find((item) => item.id === ticket.unit_id);
-  if (!unit) {
-    return `Unidade #${ticket.unit_id}`;
-  }
+  if (!unit) return `#${ticket.unit_id}`;
   return `${unit.code} · ${unit.name}`;
+}
+
+function isSlaLate(ticket: Ticket) {
+  if (!ticket.sla_due_at) return false;
+  const finalStatuses: TicketStatus[] = ["resolved", "closed", "canceled"];
+  if (finalStatuses.includes(ticket.status)) return false;
+  return new Date(ticket.sla_due_at) < new Date();
 }
 
 export default function TicketsPage() {
@@ -104,7 +140,7 @@ export default function TicketsPage() {
     items: [],
     total: 0,
     page: 1,
-    page_size: 10,
+    page_size: 20,
     pages: 0,
   });
   const [units, setUnits] = useState<Unit[]>([]);
@@ -115,11 +151,8 @@ export default function TicketsPage() {
   const canFilterByUnit = user?.role !== "manager";
 
   useEffect(() => {
-    if (!token || !canFilterByUnit) {
-      return;
-    }
-
-    void listUnits(token, { page: 1, page_size: 100, sort: "name_asc" })
+    if (!token || !canFilterByUnit) return;
+    void listUnits(token, { page: 1, page_size: 200, sort: "name_asc" })
       .then((response) => setUnits(response.items))
       .catch(() => setUnits([]));
   }, [token, canFilterByUnit]);
@@ -136,21 +169,15 @@ export default function TicketsPage() {
 
     listTickets(token, filters)
       .then((response) => {
-        if (!isActive) {
-          return;
-        }
+        if (!isActive) return;
         setData(response);
       })
       .catch((error: unknown) => {
-        if (!isActive) {
-          return;
-        }
+        if (!isActive) return;
         setErrorMessage(error instanceof Error ? error.message : "Nao foi possivel carregar os chamados.");
       })
       .finally(() => {
-        if (isActive) {
-          setIsLoading(false);
-        }
+        if (isActive) setIsLoading(false);
       });
 
     return () => {
@@ -166,9 +193,21 @@ export default function TicketsPage() {
     filters.severity,
     filters.status,
     filters.unit_id,
+    filters.only_late,
+    filters.has_fuel_nozzles_stopped,
+    filters.min_estimated_cost,
+    filters.max_estimated_cost,
     isSupplier,
     token,
   ]);
+
+  function setFilter<K extends keyof TicketFilters>(key: K, value: TicketFilters[K]) {
+    setFilters((prev) => ({ ...prev, page: 1, [key]: value }));
+  }
+
+  function clearFilters() {
+    setFilters(initialFilters);
+  }
 
   if (isSupplier) {
     return (
@@ -176,10 +215,8 @@ export default function TicketsPage() {
         <div className="page__header">
           <div>
             <p className="eyebrow">Chamados</p>
-            <h2 className="page__title">Listagem indisponivel para este perfil</h2>
-            <p className="page__description">
-              Fornecedores ainda nao participam da operacao de chamados nesta fase.
-            </p>
+            <h2 className="page__title">Acesso indisponivel</h2>
+            <p className="page__description">Fornecedores nao acessam chamados nesta fase.</p>
           </div>
         </div>
         <div className="state-card state-card--error">Seu perfil nao pode acessar a listagem de chamados.</div>
@@ -193,9 +230,7 @@ export default function TicketsPage() {
         <div>
           <p className="eyebrow">Operacao</p>
           <h2 className="page__title">Chamados</h2>
-          <p className="page__description">
-            Listagem inicial com paginacao, filtros e recorte por perfil no backend.
-          </p>
+          <p className="page__description">Listagem com filtros avancados, busca textual e recorte por perfil.</p>
         </div>
         <Link className="button-primary button-primary--link" to="/tickets/new">
           Abrir chamado
@@ -203,130 +238,155 @@ export default function TicketsPage() {
       </div>
 
       <section className="panel">
-        <div className="filters filters--form">
-          <label className="field">
-            <span>Busca</span>
-            <input
-              value={filters.search || ""}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, search: event.target.value }))
-              }
-              placeholder="Numero, titulo ou descricao"
-            />
-          </label>
-
-          {canFilterByUnit ? (
+        <div style={{ display: "grid", gap: "16px", marginBottom: "20px" }}>
+          <div className="filters filters--form">
             <label className="field">
-              <span>Unidade</span>
+              <span>Busca</span>
+              <input
+                value={filters.search || ""}
+                onChange={(e) => setFilter("search", e.target.value)}
+                placeholder="Numero, titulo, unidade..."
+              />
+            </label>
+
+            {canFilterByUnit ? (
+              <label className="field">
+                <span>Unidade</span>
+                <select
+                  value={String(filters.unit_id ?? "")}
+                  onChange={(e) =>
+                    setFilter("unit_id", e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                >
+                  <option value="">Todas</option>
+                  {units.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.code} · {unit.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            <label className="field">
+              <span>Status</span>
               <select
-                value={String(filters.unit_id ?? "")}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    page: 1,
-                    unit_id: event.target.value === "" ? "" : Number(event.target.value),
-                  }))
-                }
+                value={filters.status || ""}
+                onChange={(e) => setFilter("status", (e.target.value as TicketStatus | "") || "")}
               >
-                <option value="">Todas</option>
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.code} · {unit.name}
-                  </option>
+                <option value="">Todos</option>
+                {statusOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </label>
-          ) : null}
 
-          <label className="field">
-            <span>Status</span>
-            <select
-              value={filters.status || ""}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  page: 1,
-                  status: (event.target.value as TicketStatus | "") || "",
-                }))
-              }
-            >
-              <option value="">Todos</option>
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="field">
+              <span>Categoria</span>
+              <select
+                value={filters.category || ""}
+                onChange={(e) => setFilter("category", (e.target.value as TicketCategory | "") || "")}
+              >
+                <option value="">Todas</option>
+                {categoryOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
 
-          <label className="field">
-            <span>Categoria</span>
-            <select
-              value={filters.category || ""}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  page: 1,
-                  category: (event.target.value as TicketCategory | "") || "",
-                }))
-              }
-            >
-              <option value="">Todas</option>
-              {categoryOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="field">
+              <span>Prioridade</span>
+              <select
+                value={filters.priority || ""}
+                onChange={(e) => setFilter("priority", (e.target.value as TicketPriority | "") || "")}
+              >
+                <option value="">Todas</option>
+                {priorityOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
 
-          <label className="field">
-            <span>Prioridade</span>
-            <select
-              value={filters.priority || ""}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  page: 1,
-                  priority: (event.target.value as TicketPriority | "") || "",
-                }))
-              }
-            >
-              <option value="">Todas</option>
-              {priorityOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="field">
+              <span>Severidade</span>
+              <select
+                value={filters.severity || ""}
+                onChange={(e) => setFilter("severity", (e.target.value as TicketSeverity | "") || "")}
+              >
+                <option value="">Todas</option>
+                {severityOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
 
-          <label className="field">
-            <span>Severidade</span>
-            <select
-              value={filters.severity || ""}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  page: 1,
-                  severity: (event.target.value as TicketSeverity | "") || "",
-                }))
-              }
+            <label className="field">
+              <span>Custo min. (R$)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={filters.min_estimated_cost || ""}
+                onChange={(e) => setFilter("min_estimated_cost", e.target.value || "")}
+                placeholder="0.00"
+              />
+            </label>
+
+            <label className="field">
+              <span>Custo max. (R$)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={filters.max_estimated_cost || ""}
+                onChange={(e) => setFilter("max_estimated_cost", e.target.value || "")}
+                placeholder="0.00"
+              />
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap" }}>
+            <label className="field field--checkbox" style={{ margin: 0 }}>
+              <input
+                type="checkbox"
+                checked={filters.only_late === true}
+                onChange={(e) => setFilter("only_late", e.target.checked ? true : "")}
+              />
+              <span>Somente atrasados</span>
+            </label>
+
+            <label className="field field--checkbox" style={{ margin: 0 }}>
+              <input
+                type="checkbox"
+                checked={filters.has_fuel_nozzles_stopped === true}
+                onChange={(e) => setFilter("has_fuel_nozzles_stopped", e.target.checked ? true : "")}
+              />
+              <span>Com bicos parados</span>
+            </label>
+
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={clearFilters}
+              style={{ marginLeft: "auto" }}
             >
-              <option value="">Todas</option>
-              {severityOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              Limpar filtros
+            </button>
+          </div>
         </div>
 
-        {isLoading ? <div className="state-card">Carregando chamados...</div> : null}
-        {!isLoading && errorMessage ? <div className="state-card state-card--error">{errorMessage}</div> : null}
+        {isLoading ? (
+          <div className="state-card">Carregando chamados...</div>
+        ) : null}
+
+        {!isLoading && errorMessage ? (
+          <div className="state-card state-card--error">{errorMessage}</div>
+        ) : null}
+
         {!isLoading && !errorMessage && data.items.length === 0 ? (
-          <div className="state-card">Nenhum chamado encontrado para os filtros atuais.</div>
+          <div className="state-card">
+            Nenhum chamado encontrado para os filtros selecionados.
+          </div>
         ) : null}
 
         {!isLoading && !errorMessage && data.items.length > 0 ? (
@@ -337,53 +397,90 @@ export default function TicketsPage() {
                   <tr>
                     <th>Chamado</th>
                     <th>Unidade</th>
+                    <th>Solicitante</th>
                     <th>Titulo</th>
                     <th>Status</th>
                     <th>Prioridade</th>
                     <th>Severidade</th>
                     <th>Abertura</th>
-                    <th>Acoes</th>
+                    <th>SLA</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((ticket) => (
-                    <tr key={ticket.id}>
-                      <td>{ticket.ticket_number}</td>
-                      <td>{unitLabel(ticket, units)}</td>
-                      <td>{ticket.title}</td>
-                      <td>
-                        <span className={statusClass(ticket.status)}>{labelFromValue(ticket.status)}</span>
-                      </td>
-                      <td>
-                        <span className={priorityClass(ticket.priority)}>{labelFromValue(ticket.priority)}</span>
-                      </td>
-                      <td>
-                        <span className={severityClass(ticket.severity)}>{labelFromValue(ticket.severity)}</span>
-                      </td>
-                      <td>{formatDate(ticket.opened_at)}</td>
-                      <td>
-                        <Link className="button-link" to={`/tickets/${ticket.id}`}>
-                          Ver detalhe
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                  {data.items.map((ticket) => {
+                    const late = isSlaLate(ticket);
+                    return (
+                      <tr key={ticket.id}>
+                        <td>
+                          <span style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                            {ticket.ticket_number}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: "0.9rem" }}>{unitLabel(ticket, units)}</td>
+                        <td style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+                          {ticket.opened_by_user_name ?? `#${ticket.opened_by_user_id}`}
+                        </td>
+                        <td style={{ maxWidth: "220px" }}>
+                          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {ticket.title}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={statusClass(ticket.status)}>
+                            {STATUS_LABELS[ticket.status] ?? ticket.status}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={priorityClass(ticket.priority)}>
+                            {PRIORITY_LABELS[ticket.priority] ?? ticket.priority}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={severityClass(ticket.severity)}>
+                            {SEVERITY_LABELS[ticket.severity] ?? ticket.severity}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
+                          {formatDate(ticket.opened_at)}
+                        </td>
+                        <td>
+                          {ticket.sla_due_at ? (
+                            <span
+                              style={{
+                                fontSize: "0.82rem",
+                                fontWeight: 600,
+                                color: late ? "var(--danger)" : "var(--muted)",
+                              }}
+                            >
+                              {late ? "Atrasado" : formatDate(ticket.sla_due_at)}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--muted)", fontSize: "0.82rem" }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          <Link className="button-link" to={`/tickets/${ticket.id}`}>
+                            Detalhe
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             <div className="pagination-bar">
-              <span>
-                {data.total} registro(s) · pagina {data.page} de {Math.max(data.pages, 1)}
+              <span style={{ fontSize: "0.9rem" }}>
+                {data.total} chamado(s) · pagina {data.page} de {Math.max(data.pages, 1)}
               </span>
               <div className="pagination-actions">
                 <button
                   className="button-secondary"
                   type="button"
                   disabled={data.page <= 1}
-                  onClick={() =>
-                    setFilters((current) => ({ ...current, page: Math.max(1, (current.page || 1) - 1) }))
-                  }
+                  onClick={() => setFilters((prev) => ({ ...prev, page: Math.max(1, (prev.page || 1) - 1) }))}
                 >
                   Anterior
                 </button>
@@ -391,7 +488,7 @@ export default function TicketsPage() {
                   className="button-secondary"
                   type="button"
                   disabled={data.pages === 0 || data.page >= data.pages}
-                  onClick={() => setFilters((current) => ({ ...current, page: (current.page || 1) + 1 }))}
+                  onClick={() => setFilters((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))}
                 >
                   Proxima
                 </button>

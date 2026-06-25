@@ -41,6 +41,36 @@ class TicketCreate(BaseModel):
         return normalized or None
 
 
+class TicketUnitSummary(BaseModel):
+    id: int
+    code: str
+    name: str
+    city: str
+    state: str
+
+
+class TicketUserSummary(BaseModel):
+    id: int
+    name: str
+
+
+class TicketHistoryResponse(BaseModel):
+    id: int
+    user_id: int
+    user_name: str | None
+    old_status: TicketStatus | None
+    new_status: TicketStatus
+    comment: str | None
+    created_at: datetime
+
+
+class TicketIndicators(BaseModel):
+    estimated_loss_total: Decimal | None
+    elapsed_hours: float | None
+    is_late: bool
+    sla_status: Literal["on_track", "late", "no_sla", "closed"]
+
+
 class TicketResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,6 +106,45 @@ class TicketResponse(BaseModel):
     unit_name: str | None = None
     unit_code: str | None = None
     opened_by_user_name: str | None = None
+    assigned_to_user_name: str | None = None
+
+
+class TicketDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticket_number: str
+    unit_id: int
+    opened_by_user_id: int
+    assigned_to_user_id: int | None
+    category: TicketCategory
+    problem_type: str
+    title: str
+    description: str
+    priority: PriorityLevel
+    severity: TicketSeverity
+    status: TicketStatus
+    operational_impact: str | None
+    fuel_nozzles_stopped: int | None
+    estimated_daily_loss: Decimal | None
+    estimated_cost: Decimal | None
+    approved_cost: Decimal | None
+    final_cost: Decimal | None
+    requires_approval: bool
+    opened_at: datetime
+    triaged_at: datetime | None
+    approved_at: datetime | None
+    started_at: datetime | None
+    resolved_at: datetime | None
+    closed_at: datetime | None
+    sla_due_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+    unit: TicketUnitSummary | None
+    opened_by: TicketUserSummary | None
+    assigned_to: TicketUserSummary | None
+    history: list[TicketHistoryResponse]
+    indicators: TicketIndicators
 
 
 class TicketListResponse(PaginatedResponse[TicketResponse]):
@@ -93,6 +162,10 @@ class TicketListParams(PageParams):
     opened_to: datetime | None = None
     search: str | None = None
     sort: Literal["opened_at_desc"] = "opened_at_desc"
+    only_late: bool | None = None
+    has_fuel_nozzles_stopped: bool | None = None
+    min_estimated_cost: Decimal | None = Field(default=None, ge=0)
+    max_estimated_cost: Decimal | None = Field(default=None, ge=0)
 
     @field_validator("search")
     @classmethod

@@ -8,11 +8,27 @@ from sqlalchemy.orm import Session
 from app.models.enums import TicketStatus, UserRole
 from app.models.ticket import Ticket
 from app.models.user import User
-from app.repositories.ticket_repository import count_tickets, create_ticket, create_ticket_history, get_ticket_by_id, list_tickets
+from app.repositories.ticket_repository import (
+    count_tickets,
+    create_ticket,
+    create_ticket_history,
+    get_ticket_by_id,
+    get_ticket_detail_by_id,
+    list_tickets,
+)
 from app.repositories.unit_repository import get_unit_by_id
 from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse
+from app.schemas.ticket import (
+    TicketDetailResponse,
+    TicketHistoryResponse,
+    TicketIndicators,
+    TicketUnitSummary,
+    TicketUserSummary,
+)
 from app.schemas.pagination import calculate_pages
 from app.services.exceptions import NotFoundServiceError, ValidationServiceError
+
+_FINAL_STATUSES = {TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELED}
 
 
 class TicketNotFoundError(NotFoundServiceError):
@@ -30,6 +46,12 @@ class InvalidTicketUnitError(ValidationServiceError):
 
 class InactiveTicketUnitError(ValidationServiceError):
     detail = "Provided unit is inactive."
+
+
+def _to_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _calculate_estimated_loss_total(
@@ -83,7 +105,117 @@ def _to_ticket_response(ticket: Ticket) -> TicketResponse:
             "unit_name": ticket.unit.name if ticket.unit else None,
             "unit_code": ticket.unit.code if ticket.unit else None,
             "opened_by_user_name": ticket.opened_by_user.name if ticket.opened_by_user else None,
+            "assigned_to_user_name": ticket.assigned_to_user.name if ticket.assigned_to_user else None,
         }
+    )
+
+
+def _calculate_indicators(ticket: Ticket) -> TicketIndicators:
+    now = datetime.now(UTC)
+    opened_at = _to_utc(ticket.opened_at)
+    end_time = _to_utc(ticket.closed_at) if ticket.closed_at else now
+    elapsed_hours = round((end_time - opened_at).total_seconds() / 3600, 2)
+
+    is_final = ticket.status in _FINAL_STATUSES
+    sla_due = _to_utc(ticket.sla_due_at) if ticket.sla_due_at else None
+
+    if is_final:
+        sla_status: str = "closed"
+        is_late = False
+    elif sla_due is None:
+        sla_status = "no_sla"
+        is_late = False
+    elif sla_due >= now:
+        sla_status = "on_track"
+        is_late = False
+    else:
+        sla_status = "late"
+        is_late = True
+
+    return TicketIndicators(
+        estimated_loss_total=_calculate_estimated_loss_total(
+            ticket.fuel_nozzles_stopped,
+            ticket.estimated_daily_loss,
+        ),
+        elapsed_hours=elapsed_hours,
+        is_late=is_late,
+        sla_status=sla_status,
+    )
+
+
+def _to_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
+    unit_summary = (
+        TicketUnitSummary(
+            id=ticket.unit.id,
+            code=ticket.unit.code,
+            name=ticket.unit.name,
+            city=ticket.unit.city,
+            state=ticket.unit.state,
+        )
+        if ticket.unit
+        else None
+    )
+
+    opened_by_summary = (
+        TicketUserSummary(id=ticket.opened_by_user.id, name=ticket.opened_by_user.name)
+        if ticket.opened_by_user
+        else None
+    )
+
+    assigned_to_summary = (
+        TicketUserSummary(id=ticket.assigned_to_user.id, name=ticket.assigned_to_user.name)
+        if ticket.assigned_to_user
+        else None
+    )
+
+    history = sorted(ticket.history_entries, key=lambda h: h.created_at)
+    history_responses = [
+        TicketHistoryResponse(
+            id=h.id,
+            user_id=h.user_id,
+            user_name=h.user.name if h.user else None,
+            old_status=h.old_status,
+            new_status=h.new_status,
+            comment=h.comment,
+            created_at=h.created_at,
+        )
+        for h in history
+    ]
+
+    return TicketDetailResponse(
+        id=ticket.id,
+        ticket_number=ticket.ticket_number,
+        unit_id=ticket.unit_id,
+        opened_by_user_id=ticket.opened_by_user_id,
+        assigned_to_user_id=ticket.assigned_to_user_id,
+        category=ticket.category,
+        problem_type=ticket.problem_type,
+        title=ticket.title,
+        description=ticket.description,
+        priority=ticket.priority,
+        severity=ticket.severity,
+        status=ticket.status,
+        operational_impact=ticket.operational_impact,
+        fuel_nozzles_stopped=ticket.fuel_nozzles_stopped,
+        estimated_daily_loss=ticket.estimated_daily_loss,
+        estimated_cost=ticket.estimated_cost,
+        approved_cost=ticket.approved_cost,
+        final_cost=ticket.final_cost,
+        requires_approval=ticket.requires_approval,
+        opened_at=ticket.opened_at,
+        triaged_at=ticket.triaged_at,
+        approved_at=ticket.approved_at,
+        started_at=ticket.started_at,
+        resolved_at=ticket.resolved_at,
+        closed_at=ticket.closed_at,
+        sla_due_at=ticket.sla_due_at,
+        created_at=ticket.created_at,
+        updated_at=ticket.updated_at,
+        unit=unit_summary,
+        opened_by=opened_by_summary,
+        assigned_to=assigned_to_summary,
+        history=history_responses,
+        indicators=_calculate_indicators(ticket),
     )
 
 
@@ -197,6 +329,10 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         opened_from=scoped_params.opened_from,
         opened_to=scoped_params.opened_to,
         search=scoped_params.search,
+        only_late=scoped_params.only_late,
+        has_fuel_nozzles_stopped=scoped_params.has_fuel_nozzles_stopped,
+        min_estimated_cost=scoped_params.min_estimated_cost,
+        max_estimated_cost=scoped_params.max_estimated_cost,
     )
     items = list_tickets(
         session,
@@ -211,6 +347,10 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         opened_from=scoped_params.opened_from,
         opened_to=scoped_params.opened_to,
         search=scoped_params.search,
+        only_late=scoped_params.only_late,
+        has_fuel_nozzles_stopped=scoped_params.has_fuel_nozzles_stopped,
+        min_estimated_cost=scoped_params.min_estimated_cost,
+        max_estimated_cost=scoped_params.max_estimated_cost,
     )
     return TicketListResponse(
         items=[_to_ticket_response(ticket) for ticket in items],
@@ -221,11 +361,13 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
     )
 
 
-def get_ticket_detail(session: Session, ticket_id: int, current_user: User) -> TicketResponse:
+def get_ticket_detail(session: Session, ticket_id: int, current_user: User) -> TicketDetailResponse:
     if current_user.role == UserRole.SUPPLIER:
         raise TicketPermissionError
 
-    ticket = get_ticket_or_404(session, ticket_id)
+    ticket = get_ticket_detail_by_id(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
     if not _can_view_ticket(current_user, ticket):
         raise TicketPermissionError
-    return _to_ticket_response(ticket)
+    return _to_ticket_detail_response(ticket)

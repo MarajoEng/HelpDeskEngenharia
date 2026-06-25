@@ -153,6 +153,59 @@ source .venv/bin/activate
 pytest
 ```
 
+## Listagem e detalhe da FASE 6
+
+Melhorias aplicadas nos endpoints de chamados:
+
+### GET /tickets — filtros disponiveis
+
+| Parametro | Tipo | Descricao |
+|---|---|---|
+| `unit_id` | int | Filtrar por unidade |
+| `status` | enum | Status do chamado |
+| `category` | enum | Categoria |
+| `priority` | enum | Prioridade |
+| `severity` | enum | Severidade |
+| `requires_approval` | bool | Exige aprovacao |
+| `opened_from` | datetime | Abertos a partir de |
+| `opened_to` | datetime | Abertos ate |
+| `search` | string | Busca em numero, titulo, descricao, tipo do problema e nome/codigo da unidade |
+| `only_late` | bool | Somente chamados com SLA vencido e status nao finalizado |
+| `has_fuel_nozzles_stopped` | bool | Somente chamados com bicos parados > 0 |
+| `min_estimated_cost` | decimal | Custo estimado minimo (nao negativo) |
+| `max_estimated_cost` | decimal | Custo estimado maximo (nao negativo) |
+| `page` | int | Pagina |
+| `page_size` | int | Itens por pagina (max 100) |
+
+### Retorno enriquecido da listagem
+
+Cada item da listagem inclui agora:
+
+- `unit_code`, `unit_name`: dados da unidade sem N+1
+- `opened_by_user_name`: nome do solicitante
+- `assigned_to_user_name`: nome do responsavel (quando atribuido)
+
+### GET /tickets/{ticket_id} — detalhe completo
+
+Retorna `TicketDetailResponse` com:
+
+- Todos os campos do chamado
+- `unit`: objeto `TicketUnitSummary` com id, code, name, city, state
+- `opened_by`: objeto `TicketUserSummary` com id e name
+- `assigned_to`: objeto `TicketUserSummary` ou null
+- `history`: lista de `TicketHistoryResponse` ordenada por data
+- `indicators`: objeto `TicketIndicators` com:
+  - `estimated_loss_total`: perda total calculada
+  - `elapsed_hours`: horas decorridas desde abertura
+  - `is_late`: booleano se SLA vencido e nao encerrado
+  - `sla_status`: `on_track`, `late`, `no_sla` ou `closed`
+
+### Regras de permissao
+
+- `admin`, `engineering`, `director`: acessam todos os chamados
+- `manager`: restritos a chamados da propria unidade
+- `supplier`: bloqueado em listagem e detalhe
+
 ## Observacao de teste
 
-Os testes de metadata, autenticacao e CRUD administrativo usam SQLite em memoria para validar estrutura, login, token, autorizacao, paginacao e filtros sem depender de um PostgreSQL real.
+Os testes de metadata, autenticacao, CRUD administrativo e chamados usam SQLite em memoria para validar estrutura, login, token, autorizacao, paginacao, filtros e indicadores sem depender de um PostgreSQL real.

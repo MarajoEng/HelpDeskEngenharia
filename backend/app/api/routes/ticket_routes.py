@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,6 +12,7 @@ from app.core.database import get_db_session
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
 from app.models.user import User
 from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse
+from app.schemas.ticket import TicketDetailResponse
 from app.services.exceptions import ServiceError
 from app.services.ticket_service import create_ticket_record, get_ticket_detail, list_ticket_records
 
@@ -34,6 +36,10 @@ def _build_list_params(
     opened_from: datetime | None = Query(default=None),
     opened_to: datetime | None = Query(default=None),
     search: str | None = Query(default=None),
+    only_late: bool | None = Query(default=None),
+    has_fuel_nozzles_stopped: bool | None = Query(default=None),
+    min_estimated_cost: Decimal | None = Query(default=None, ge=0),
+    max_estimated_cost: Decimal | None = Query(default=None, ge=0),
 ) -> TicketListParams:
     return TicketListParams(
         page=page,
@@ -47,6 +53,10 @@ def _build_list_params(
         opened_from=opened_from,
         opened_to=opened_to,
         search=search,
+        only_late=only_late,
+        has_fuel_nozzles_stopped=has_fuel_nozzles_stopped,
+        min_estimated_cost=min_estimated_cost,
+        max_estimated_cost=max_estimated_cost,
     )
 
 
@@ -74,12 +84,12 @@ def read_tickets(
         _raise_service_error(error)
 
 
-@router.get("/{ticket_id}", response_model=TicketResponse)
+@router.get("/{ticket_id}", response_model=TicketDetailResponse)
 def read_ticket(
     ticket_id: int,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db_session),
-) -> TicketResponse:
+) -> TicketDetailResponse:
     try:
         return get_ticket_detail(session, ticket_id, current_user)
     except ServiceError as error:

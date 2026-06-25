@@ -1,5 +1,5 @@
 import { requestJson } from "./http";
-import type { Ticket, TicketCreatePayload, TicketFilters, TicketListResponse } from "../types/ticket";
+import type { Ticket, TicketCreatePayload, TicketDetail, TicketFilters, TicketListResponse } from "../types/ticket";
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
@@ -34,7 +34,7 @@ export function listTickets(token: string, filters: TicketFilters) {
 }
 
 export function getTicketById(token: string, ticketId: number) {
-  return requestJson<Ticket>(`/tickets/${ticketId}`, {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}`, {
     headers: authHeaders(token),
   });
 }

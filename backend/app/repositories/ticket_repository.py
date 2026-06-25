@@ -1,18 +1,33 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.models.enums import TicketStatus
 from app.models.ticket import Ticket
 from app.models.ticket_history import TicketHistory
+from app.models.unit import Unit
+
+_FINAL_STATUSES = [TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELED]
 
 
 def _ticket_base_query() -> Select[tuple[Ticket]]:
     return select(Ticket).options(
         selectinload(Ticket.unit),
         selectinload(Ticket.opened_by_user),
+        selectinload(Ticket.assigned_to_user),
+    )
+
+
+def _ticket_detail_query() -> Select[tuple[Ticket]]:
+    return select(Ticket).options(
+        selectinload(Ticket.unit),
+        selectinload(Ticket.opened_by_user),
+        selectinload(Ticket.assigned_to_user),
+        selectinload(Ticket.history_entries).selectinload(TicketHistory.user),
     )
 
 
@@ -28,6 +43,10 @@ def _apply_ticket_filters(
     opened_from: datetime | None = None,
     opened_to: datetime | None = None,
     search: str | None = None,
+    only_late: bool | None = None,
+    has_fuel_nozzles_stopped: bool | None = None,
+    min_estimated_cost: Decimal | None = None,
+    max_estimated_cost: Decimal | None = None,
 ) -> Select[tuple[Ticket]] | Select[tuple[int]]:
     if unit_id is not None:
         statement = statement.where(Ticket.unit_id == unit_id)
@@ -45,13 +64,41 @@ def _apply_ticket_filters(
         statement = statement.where(Ticket.opened_at >= opened_from)
     if opened_to is not None:
         statement = statement.where(Ticket.opened_at <= opened_to)
+    if only_late:
+        now = datetime.now(UTC)
+        statement = statement.where(
+            Ticket.sla_due_at.isnot(None),
+            Ticket.sla_due_at < now,
+            Ticket.status.notin_(_FINAL_STATUSES),
+        )
+    if has_fuel_nozzles_stopped:
+        statement = statement.where(
+            Ticket.fuel_nozzles_stopped.isnot(None),
+            Ticket.fuel_nozzles_stopped > 0,
+        )
+    if min_estimated_cost is not None:
+        statement = statement.where(Ticket.estimated_cost >= min_estimated_cost)
+    if max_estimated_cost is not None:
+        statement = statement.where(Ticket.estimated_cost <= max_estimated_cost)
     if search:
-        pattern = f"%{search.strip()}%"
+        term = search.strip()
+        pattern = f"%{term}%"
+        unit_subq = (
+            select(Unit.id)
+            .where(
+                Unit.id == Ticket.unit_id,
+                or_(Unit.name.ilike(pattern), Unit.code.ilike(pattern)),
+            )
+            .correlate(Ticket)
+            .exists()
+        )
         statement = statement.where(
             or_(
                 Ticket.ticket_number.ilike(pattern),
                 Ticket.title.ilike(pattern),
                 Ticket.description.ilike(pattern),
+                Ticket.problem_type.ilike(pattern),
+                unit_subq,
             )
         )
     return statement
@@ -90,6 +137,11 @@ def get_ticket_by_id(session: Session, ticket_id: int) -> Ticket | None:
     return session.scalar(statement)
 
 
+def get_ticket_detail_by_id(session: Session, ticket_id: int) -> Ticket | None:
+    statement = _ticket_detail_query().where(Ticket.id == ticket_id).limit(1)
+    return session.scalar(statement)
+
+
 def get_ticket_by_number(session: Session, ticket_number: str) -> Ticket | None:
     statement = _ticket_base_query().where(Ticket.ticket_number == ticket_number).limit(1)
     return session.scalar(statement)
@@ -109,6 +161,10 @@ def list_tickets(
     opened_from: datetime | None = None,
     opened_to: datetime | None = None,
     search: str | None = None,
+    only_late: bool | None = None,
+    has_fuel_nozzles_stopped: bool | None = None,
+    min_estimated_cost: Decimal | None = None,
+    max_estimated_cost: Decimal | None = None,
 ) -> list[Ticket]:
     statement = _ticket_base_query()
     statement = _apply_ticket_filters(
@@ -122,6 +178,10 @@ def list_tickets(
         opened_from=opened_from,
         opened_to=opened_to,
         search=search,
+        only_late=only_late,
+        has_fuel_nozzles_stopped=has_fuel_nozzles_stopped,
+        min_estimated_cost=min_estimated_cost,
+        max_estimated_cost=max_estimated_cost,
     )
     statement = statement.order_by(Ticket.opened_at.desc(), Ticket.id.desc())
     statement = statement.offset((page - 1) * page_size).limit(page_size)
@@ -140,6 +200,10 @@ def count_tickets(
     opened_from: datetime | None = None,
     opened_to: datetime | None = None,
     search: str | None = None,
+    only_late: bool | None = None,
+    has_fuel_nozzles_stopped: bool | None = None,
+    min_estimated_cost: Decimal | None = None,
+    max_estimated_cost: Decimal | None = None,
 ) -> int:
     statement = select(func.count()).select_from(Ticket)
     statement = _apply_ticket_filters(
@@ -153,5 +217,9 @@ def count_tickets(
         opened_from=opened_from,
         opened_to=opened_to,
         search=search,
+        only_late=only_late,
+        has_fuel_nozzles_stopped=has_fuel_nozzles_stopped,
+        min_estimated_cost=min_estimated_cost,
+        max_estimated_cost=max_estimated_cost,
     )
     return int(session.scalar(statement) or 0)
