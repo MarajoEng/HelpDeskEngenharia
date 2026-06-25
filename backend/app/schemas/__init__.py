@@ -8,6 +8,7 @@ from app.schemas.ticket import (
     TicketListParams,
     TicketListResponse,
     TicketResponse,
+    TicketTriageRequest,
     TicketUnitSummary,
     TicketUserSummary,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "TicketListParams",
     "TicketListResponse",
     "TicketResponse",
+    "TicketTriageRequest",
     "TicketUnitSummary",
     "TicketUserSummary",
     "TokenResponse",

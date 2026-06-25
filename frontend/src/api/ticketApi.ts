@@ -1,5 +1,13 @@
 import { requestJson } from "./http";
-import type { Ticket, TicketCreatePayload, TicketDetail, TicketFilters, TicketListResponse } from "../types/ticket";
+import type {
+  Ticket,
+  TicketCreatePayload,
+  TicketDetail,
+  TicketFilters,
+  TicketListResponse,
+  TicketTriagePayload,
+} from "../types/ticket";
+import type { UserFilters, UserListResponse } from "../types/user";
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
@@ -36,5 +44,29 @@ export function listTickets(token: string, filters: TicketFilters) {
 export function getTicketById(token: string, ticketId: number) {
   return requestJson<TicketDetail>(`/tickets/${ticketId}`, {
     headers: authHeaders(token),
+  });
+}
+
+export function listTriageAssignees(token: string, filters: UserFilters) {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+    params.set(key, String(value));
+  });
+
+  const query = params.toString();
+  return requestJson<UserListResponse>(query ? `/tickets/triage-assignees?${query}` : "/tickets/triage-assignees", {
+    headers: authHeaders(token),
+  });
+}
+
+export function triageTicket(token: string, ticketId: number, payload: TicketTriagePayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/triage`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
   });
 }

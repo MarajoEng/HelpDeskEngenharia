@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -11,10 +11,17 @@ from app.api.dependencies import get_current_user
 from app.core.database import get_db_session
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
 from app.models.user import User
-from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse
+from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse, TicketTriageRequest
 from app.schemas.ticket import TicketDetailResponse
+from app.schemas.user import UserListParams, UserListResponse
 from app.services.exceptions import ServiceError
-from app.services.ticket_service import create_ticket_record, get_ticket_detail, list_ticket_records
+from app.services.ticket_service import (
+    create_ticket_record,
+    get_ticket_detail,
+    list_ticket_records,
+    list_ticket_triage_assignees,
+    triage_ticket,
+)
 
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -40,6 +47,7 @@ def _build_list_params(
     has_fuel_nozzles_stopped: bool | None = Query(default=None),
     min_estimated_cost: Decimal | None = Query(default=None, ge=0),
     max_estimated_cost: Decimal | None = Query(default=None, ge=0),
+    queue: Literal["engineering"] | None = Query(default=None),
 ) -> TicketListParams:
     return TicketListParams(
         page=page,
@@ -57,6 +65,20 @@ def _build_list_params(
         has_fuel_nozzles_stopped=has_fuel_nozzles_stopped,
         min_estimated_cost=min_estimated_cost,
         max_estimated_cost=max_estimated_cost,
+        queue=queue,
+    )
+
+
+def _build_triage_assignees_params(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: str | None = Query(default=None),
+) -> UserListParams:
+    return UserListParams(
+        page=page,
+        page_size=page_size,
+        search=search,
+        sort="name_asc",
     )
 
 
@@ -84,6 +106,18 @@ def read_tickets(
         _raise_service_error(error)
 
 
+@router.get("/triage-assignees", response_model=UserListResponse)
+def read_ticket_triage_assignees(
+    params: Annotated[UserListParams, Depends(_build_triage_assignees_params)],
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> UserListResponse:
+    try:
+        return list_ticket_triage_assignees(session, params, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
 @router.get("/{ticket_id}", response_model=TicketDetailResponse)
 def read_ticket(
     ticket_id: int,
@@ -92,5 +126,18 @@ def read_ticket(
 ) -> TicketDetailResponse:
     try:
         return get_ticket_detail(session, ticket_id, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.patch("/{ticket_id}/triage", response_model=TicketDetailResponse)
+def patch_ticket_triage(
+    ticket_id: int,
+    payload: TicketTriageRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketDetailResponse:
+    try:
+        return triage_ticket(session, ticket_id, payload, current_user)
     except ServiceError as error:
         _raise_service_error(error)

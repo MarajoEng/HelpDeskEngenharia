@@ -182,6 +182,13 @@ a {
   gap: 16px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .page__title,
 .auth-panel h2,
 .screen-state__card h2 {
@@ -234,6 +241,10 @@ a {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.details-list--metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .list {
@@ -403,6 +414,11 @@ a {
   font-weight: 600;
 }
 
+.field__hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .field input {
   padding: 14px 16px;
   border-radius: 16px;
@@ -473,6 +489,60 @@ a {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.engineering-filters {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.engineering-filters__checkbox {
+  align-self: end;
+}
+
+.engineering-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px 20px;
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+
+.summary-card strong {
+  display: block;
+  margin: 8px 0 6px;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.summary-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.summary-card__label {
+  display: inline-flex;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.74rem;
+  color: var(--primary);
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -496,6 +566,13 @@ a {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
+}
+
+.table-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .pagination-bar {
@@ -573,6 +650,12 @@ a {
   gap: 16px;
 }
 
+.ticket-triage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .field--full {
   grid-column: 1 / -1;
 }
@@ -621,6 +704,11 @@ a {
 
 .text-muted {
   color: var(--muted);
+}
+
+.text-danger {
+  color: var(--danger);
+  font-weight: 600;
 }
 
 .info-card {
@@ -681,14 +769,21 @@ a {
   .filters,
   .details-list,
   .ticket-grid,
-  .filters--form {
+  .filters--form,
+  .summary-grid,
+  .ticket-triage-grid,
+  .engineering-filters,
+  .details-list--metrics {
     grid-template-columns: 1fr;
   }
 
   .pagination-bar,
   .modal-card__header,
   .form-actions,
-  .ticket-summary {
+  .ticket-summary,
+  .engineering-toolbar,
+  .header-actions,
+  .table-actions {
     flex-direction: column;
     align-items: flex-start;
   }

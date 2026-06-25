@@ -12,6 +12,11 @@ from app.models.ticket_history import TicketHistory
 from app.models.unit import Unit
 
 _FINAL_STATUSES = [TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELED]
+_ENGINEERING_QUEUE_STATUSES = [
+    TicketStatus.OPEN,
+    TicketStatus.TRIAGE,
+    TicketStatus.WAITING_UNIT,
+]
 
 
 def _ticket_base_query() -> Select[tuple[Ticket]]:
@@ -47,6 +52,7 @@ def _apply_ticket_filters(
     has_fuel_nozzles_stopped: bool | None = None,
     min_estimated_cost: Decimal | None = None,
     max_estimated_cost: Decimal | None = None,
+    queue: str | None = None,
 ) -> Select[tuple[Ticket]] | Select[tuple[int]]:
     if unit_id is not None:
         statement = statement.where(Ticket.unit_id == unit_id)
@@ -80,6 +86,8 @@ def _apply_ticket_filters(
         statement = statement.where(Ticket.estimated_cost >= min_estimated_cost)
     if max_estimated_cost is not None:
         statement = statement.where(Ticket.estimated_cost <= max_estimated_cost)
+    if queue == "engineering":
+        statement = statement.where(Ticket.status.in_(_ENGINEERING_QUEUE_STATUSES))
     if search:
         term = search.strip()
         pattern = f"%{term}%"
@@ -137,6 +145,11 @@ def get_ticket_by_id(session: Session, ticket_id: int) -> Ticket | None:
     return session.scalar(statement)
 
 
+def get_ticket_for_update(session: Session, ticket_id: int) -> Ticket | None:
+    statement = select(Ticket).where(Ticket.id == ticket_id).limit(1)
+    return session.scalar(statement)
+
+
 def get_ticket_detail_by_id(session: Session, ticket_id: int) -> Ticket | None:
     statement = _ticket_detail_query().where(Ticket.id == ticket_id).limit(1)
     return session.scalar(statement)
@@ -165,6 +178,7 @@ def list_tickets(
     has_fuel_nozzles_stopped: bool | None = None,
     min_estimated_cost: Decimal | None = None,
     max_estimated_cost: Decimal | None = None,
+    queue: str | None = None,
 ) -> list[Ticket]:
     statement = _ticket_base_query()
     statement = _apply_ticket_filters(
@@ -182,6 +196,7 @@ def list_tickets(
         has_fuel_nozzles_stopped=has_fuel_nozzles_stopped,
         min_estimated_cost=min_estimated_cost,
         max_estimated_cost=max_estimated_cost,
+        queue=queue,
     )
     statement = statement.order_by(Ticket.opened_at.desc(), Ticket.id.desc())
     statement = statement.offset((page - 1) * page_size).limit(page_size)
@@ -204,6 +219,7 @@ def count_tickets(
     has_fuel_nozzles_stopped: bool | None = None,
     min_estimated_cost: Decimal | None = None,
     max_estimated_cost: Decimal | None = None,
+    queue: str | None = None,
 ) -> int:
     statement = select(func.count()).select_from(Ticket)
     statement = _apply_ticket_filters(
@@ -221,5 +237,15 @@ def count_tickets(
         has_fuel_nozzles_stopped=has_fuel_nozzles_stopped,
         min_estimated_cost=min_estimated_cost,
         max_estimated_cost=max_estimated_cost,
+        queue=queue,
     )
     return int(session.scalar(statement) or 0)
+
+
+def update_ticket(session: Session, ticket: Ticket, **changes: object) -> Ticket:
+    for field, value in changes.items():
+        setattr(ticket, field, value)
+
+    session.add(ticket)
+    session.flush()
+    return ticket

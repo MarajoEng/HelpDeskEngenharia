@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import CreateTicketPage from "./pages/CreateTicketPage";
+import EngineeringQueuePage from "./pages/EngineeringQueuePage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="/login" element={<LoginRoute />} />
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/engineering" element={<EngineeringQueuePage />} />
           <Route path="/tickets" element={<TicketsPage />} />
           <Route path="/tickets/new" element={<CreateTicketPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />

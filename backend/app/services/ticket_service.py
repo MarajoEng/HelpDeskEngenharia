@@ -14,10 +14,13 @@ from app.repositories.ticket_repository import (
     create_ticket_history,
     get_ticket_by_id,
     get_ticket_detail_by_id,
+    get_ticket_for_update,
     list_tickets,
+    update_ticket,
 )
 from app.repositories.unit_repository import get_unit_by_id
-from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse
+from app.repositories.user_repository import count_users, get_user_by_id, list_users
+from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse, TicketTriageRequest
 from app.schemas.ticket import (
     TicketDetailResponse,
     TicketHistoryResponse,
@@ -26,9 +29,11 @@ from app.schemas.ticket import (
     TicketUserSummary,
 )
 from app.schemas.pagination import calculate_pages
-from app.services.exceptions import NotFoundServiceError, ValidationServiceError
+from app.schemas.user import UserListParams, UserListResponse, UserResponse
+from app.services.exceptions import ConflictServiceError, NotFoundServiceError, ValidationServiceError
 
 _FINAL_STATUSES = {TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELED}
+_TRIAGE_ALLOWED_STATUSES = {TicketStatus.OPEN, TicketStatus.WAITING_UNIT, TicketStatus.TRIAGE}
 
 
 class TicketNotFoundError(NotFoundServiceError):
@@ -46,6 +51,22 @@ class InvalidTicketUnitError(ValidationServiceError):
 
 class InactiveTicketUnitError(ValidationServiceError):
     detail = "Provided unit is inactive."
+
+
+class AssignedUserNotFoundError(ValidationServiceError):
+    detail = "Assigned user not found."
+
+
+class AssignedUserInactiveError(ValidationServiceError):
+    detail = "Assigned user must be active."
+
+
+class AssignedUserRoleError(ValidationServiceError):
+    detail = "Assigned user must have admin or engineering role."
+
+
+class TicketTriageTransitionError(ConflictServiceError):
+    detail = "Ticket cannot be triaged from the current status."
 
 
 def _to_utc(dt: datetime) -> datetime:
@@ -333,6 +354,7 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         has_fuel_nozzles_stopped=scoped_params.has_fuel_nozzles_stopped,
         min_estimated_cost=scoped_params.min_estimated_cost,
         max_estimated_cost=scoped_params.max_estimated_cost,
+        queue=scoped_params.queue,
     )
     items = list_tickets(
         session,
@@ -351,6 +373,7 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         has_fuel_nozzles_stopped=scoped_params.has_fuel_nozzles_stopped,
         min_estimated_cost=scoped_params.min_estimated_cost,
         max_estimated_cost=scoped_params.max_estimated_cost,
+        queue=scoped_params.queue,
     )
     return TicketListResponse(
         items=[_to_ticket_response(ticket) for ticket in items],
@@ -371,3 +394,113 @@ def get_ticket_detail(session: Session, ticket_id: int, current_user: User) -> T
     if not _can_view_ticket(current_user, ticket):
         raise TicketPermissionError
     return _to_ticket_detail_response(ticket)
+
+
+def _enforce_triage_permission(current_user: User) -> None:
+    if current_user.role not in {UserRole.ADMIN, UserRole.ENGINEERING}:
+        raise TicketPermissionError
+
+
+def _validate_assigned_user(session: Session, user_id: int | None) -> User | None:
+    if user_id is None:
+        return None
+
+    user = get_user_by_id(session, user_id)
+    if user is None:
+        raise AssignedUserNotFoundError
+    if not user.is_active:
+        raise AssignedUserInactiveError
+    if user.role not in {UserRole.ADMIN, UserRole.ENGINEERING}:
+        raise AssignedUserRoleError
+    return user
+
+
+def triage_ticket(
+    session: Session,
+    ticket_id: int,
+    payload: TicketTriageRequest,
+    current_user: User,
+) -> TicketDetailResponse:
+    _enforce_triage_permission(current_user)
+
+    ticket = get_ticket_for_update(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
+
+    if ticket.status not in _TRIAGE_ALLOWED_STATUSES:
+        raise TicketTriageTransitionError
+
+    payload_fields = payload.model_fields_set
+    changes: dict[str, object] = {}
+
+    if "assigned_to_user_id" in payload_fields:
+        _validate_assigned_user(session, payload.assigned_to_user_id)
+        changes["assigned_to_user_id"] = payload.assigned_to_user_id
+
+    if "priority" in payload_fields and payload.priority is not None:
+        changes["priority"] = payload.priority
+
+    if "severity" in payload_fields and payload.severity is not None:
+        changes["severity"] = payload.severity
+
+    if "requires_approval" in payload_fields and payload.requires_approval is not None:
+        changes["requires_approval"] = payload.requires_approval
+
+    if "sla_due_at" in payload_fields:
+        changes["sla_due_at"] = payload.sla_due_at
+
+    old_status = ticket.status
+    if ticket.status in {TicketStatus.OPEN, TicketStatus.WAITING_UNIT}:
+        changes["status"] = TicketStatus.TRIAGE
+        if ticket.triaged_at is None:
+            changes["triaged_at"] = datetime.now(UTC)
+
+    if changes:
+        update_ticket(session, ticket, **changes)
+
+    create_ticket_history(
+        session,
+        ticket_id=ticket.id,
+        user_id=current_user.id,
+        old_status=old_status,
+        new_status=TicketStatus.TRIAGE,
+        comment=payload.technical_comment,
+    )
+    session.commit()
+
+    persisted_ticket = get_ticket_detail_by_id(session, ticket.id)
+    if persisted_ticket is None:
+        raise TicketNotFoundError
+    return _to_ticket_detail_response(persisted_ticket)
+
+
+def list_ticket_triage_assignees(
+    session: Session,
+    params: UserListParams,
+    current_user: User,
+) -> UserListResponse:
+    _enforce_triage_permission(current_user)
+
+    eligible_roles = [UserRole.ADMIN, UserRole.ENGINEERING]
+    total = count_users(
+        session,
+        search=params.search,
+        roles=eligible_roles,
+        is_active=True,
+    )
+    items = list_users(
+        session,
+        page=params.page,
+        page_size=params.page_size,
+        search=params.search,
+        roles=eligible_roles,
+        is_active=True,
+        sort=params.sort,
+    )
+    return UserListResponse(
+        items=[UserResponse.model_validate(user) for user in items],
+        total=total,
+        page=params.page,
+        page_size=params.page_size,
+        pages=calculate_pages(total, params.page_size),
+    )

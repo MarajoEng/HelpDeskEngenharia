@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -166,6 +166,7 @@ class TicketListParams(PageParams):
     has_fuel_nozzles_stopped: bool | None = None
     min_estimated_cost: Decimal | None = Field(default=None, ge=0)
     max_estimated_cost: Decimal | None = Field(default=None, ge=0)
+    queue: Literal["engineering"] | None = None
 
     @field_validator("search")
     @classmethod
@@ -174,3 +175,31 @@ class TicketListParams(PageParams):
             return value
         normalized = value.strip()
         return normalized or None
+
+
+class TicketTriageRequest(BaseModel):
+    assigned_to_user_id: int | None = Field(default=None, ge=1)
+    priority: PriorityLevel | None = None
+    severity: TicketSeverity | None = None
+    requires_approval: bool | None = None
+    sla_due_at: datetime | None = None
+    technical_comment: str = Field(min_length=1)
+
+    @field_validator("technical_comment")
+    @classmethod
+    def strip_technical_comment(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Technical comment is required.")
+        return normalized
+
+    @field_validator("sla_due_at")
+    @classmethod
+    def validate_sla_due_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
+
+        normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        if normalized < datetime.now(UTC):
+            raise ValueError("SLA due date cannot be in the past.")
+        return normalized

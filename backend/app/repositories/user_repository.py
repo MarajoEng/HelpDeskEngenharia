@@ -11,6 +11,7 @@ def _apply_user_filters(
     *,
     search: str | None = None,
     role: str | None = None,
+    roles: list[str] | tuple[str, ...] | None = None,
     unit_id: int | None = None,
     is_active: bool | None = None,
 ) -> Select[tuple[User]] | Select[tuple[int]]:
@@ -25,6 +26,8 @@ def _apply_user_filters(
 
     if role is not None:
         statement = statement.where(User.role == role)
+    elif roles:
+        statement = statement.where(User.role.in_(roles))
 
     if unit_id is not None:
         statement = statement.where(User.unit_id == unit_id)
@@ -82,6 +85,7 @@ def list_users(
     page_size: int,
     search: str | None = None,
     role: str | None = None,
+    roles: list[str] | tuple[str, ...] | None = None,
     unit_id: int | None = None,
     is_active: bool | None = None,
     sort: str = "name_asc",
@@ -91,6 +95,7 @@ def list_users(
         statement,
         search=search,
         role=role,
+        roles=roles,
         unit_id=unit_id,
         is_active=is_active,
     )
@@ -109,6 +114,7 @@ def count_users(
     *,
     search: str | None = None,
     role: str | None = None,
+    roles: list[str] | tuple[str, ...] | None = None,
     unit_id: int | None = None,
     is_active: bool | None = None,
 ) -> int:
@@ -117,6 +123,7 @@ def count_users(
         statement,
         search=search,
         role=role,
+        roles=roles,
         unit_id=unit_id,
         is_active=is_active,
     )

@@ -6,6 +6,7 @@ import { useAuth } from "../../hooks/useAuth";
 export default function AppLayout({ children }: PropsWithChildren) {
   const { logout, user } = useAuth();
   const canAccessTickets = user?.role !== "supplier";
+  const canAccessEngineering = user?.role === "admin" || user?.role === "engineering";
   const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
   const canAccessUsers = user?.role === "admin";
 
@@ -39,6 +40,16 @@ export default function AppLayout({ children }: PropsWithChildren) {
               >
                 Chamados
               </NavLink>
+              {canAccessEngineering ? (
+                <NavLink
+                  to="/engineering"
+                  className={({ isActive }) =>
+                    isActive ? "nav-link nav-link--active" : "nav-link"
+                  }
+                >
+                  Engenharia
+                </NavLink>
+              ) : null}
               <NavLink
                 to="/tickets/new"
                 className={({ isActive }) =>
@@ -72,9 +83,9 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </nav>
 
         <div className="shell__sidebar-card">
-          <span className="status-badge status-badge--info">Fase 5</span>
+          <span className="status-badge status-badge--info">Fase 7</span>
           <p>
-            Abertura de chamados com numero unico, historico inicial e listagem protegida.
+            Triagem tecnica com responsavel, SLA, criticidade e historico auditavel.
           </p>
         </div>
       </aside>

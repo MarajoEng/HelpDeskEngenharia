@@ -1,6 +1,6 @@
 # Backend
 
-Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia.
+Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia, incluindo triagem tecnica da FASE 7.
 
 ## Estrutura
 
@@ -209,3 +209,80 @@ Retorna `TicketDetailResponse` com:
 ## Observacao de teste
 
 Os testes de metadata, autenticacao, CRUD administrativo e chamados usam SQLite em memoria para validar estrutura, login, token, autorizacao, paginacao, filtros e indicadores sem depender de um PostgreSQL real.
+
+## Triagem da engenharia na FASE 7
+
+### PATCH /tickets/{ticket_id}/triage
+
+Permissoes:
+
+- `admin` e `engineering`: podem executar triagem
+- `director`: pode visualizar, mas nao pode triar
+- `manager` e `supplier`: bloqueados
+
+Payload:
+
+```json
+{
+  "assigned_to_user_id": 7,
+  "priority": "medium",
+  "severity": "high",
+  "requires_approval": false,
+  "sla_due_at": "2026-06-25T18:00:00Z",
+  "technical_comment": "Analise tecnica iniciada pela engenharia central."
+}
+```
+
+Retorno:
+
+- `TicketDetailResponse` completo e atualizado, com `history` e `indicators`
+
+Validacoes principais:
+
+- `technical_comment` obrigatorio e sem valor vazio
+- `assigned_to_user_id`, quando informado, precisa existir, estar ativo e ter role `engineering` ou `admin`
+- `sla_due_at`, quando informado, nao pode estar no passado
+- `priority` e `severity` seguem os enums existentes
+
+Transicoes permitidas nesta fase:
+
+- `open` -> `triage`
+- `waiting_unit` -> `triage`
+- `triage` -> `triage` para atualizacao tecnica adicional
+
+Bloqueios desta fase:
+
+- triagem nao pode partir de `closed`, `canceled`, `resolved`, `waiting_approval`, `approved`, `rejected`, `in_progress` e demais status fora do fluxo permitido
+- toda tentativa invalida retorna `409`
+
+Auditoria:
+
+- toda triagem gera `TicketHistory`
+- `old_status`, `new_status`, `user_id`, `comment` e `created_at` ficam registrados
+- `triaged_at` e preenchido apenas na primeira entrada em `triage`
+
+### GET /tickets?queue=engineering
+
+Filtro adicional para a fila da engenharia usando a listagem existente:
+
+- inclui apenas status `open`, `triage` e `waiting_unit`
+- preserva paginacao, limite maximo e permissoes da listagem principal
+- pode ser combinado com `unit_id`, `priority`, `severity`, `status`, `only_late` e demais filtros ja existentes
+
+### GET /tickets/triage-assignees
+
+Lista paginada de usuarios elegiveis para atribuicao tecnica:
+
+- somente `admin` e `engineering`
+- retorna apenas usuarios ativos com role `admin` ou `engineering`
+- aceita `page`, `page_size` e `search`
+
+### Limitacoes preservadas
+
+- sem aprovacao de orcamento
+- sem execucao
+- sem encerramento
+- sem upload
+- sem dashboard
+- sem relatorios
+- sem Celery

@@ -45,17 +45,17 @@ export default function HomePage() {
           <ul className="list">
             <li>Abertura de chamados com status inicial `open` e numero unico gerado no backend.</li>
             <li>Permissoes por perfil para criar, listar e detalhar chamados.</li>
-            <li>Historico inicial transacional no momento da abertura.</li>
-            <li>Frontend simples para abrir, listar e consultar chamados sem mock fixo.</li>
+            <li>Triagem tecnica com responsavel, ajuste de prioridade/severidade, SLA e comentario auditavel.</li>
+            <li>Fila dedicada da engenharia e detalhe atualizado em tempo real sem mock fixo.</li>
           </ul>
         </article>
 
         <article className="panel">
           <h3>Limites preservados</h3>
           <ul className="list">
-            <li>Sem triagem, aprovacao, execucao, encerramento, anexos ou comentarios.</li>
+            <li>Sem aprovacao de orcamento, execucao, encerramento, anexos ou dashboard.</li>
             <li>Sem dashboard, relatorios, upload ou automacoes assincronas.</li>
-            <li>Sem alteracao manual de status nesta etapa.</li>
+            <li>Sem Celery, relatorios ou qualquer fluxo da FASE 8 em diante.</li>
           </ul>
         </article>
       </div>

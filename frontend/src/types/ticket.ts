@@ -148,6 +148,15 @@ export interface TicketCreatePayload {
   requires_approval: boolean;
 }
 
+export interface TicketTriagePayload {
+  assigned_to_user_id?: number | null;
+  priority?: TicketPriority;
+  severity?: TicketSeverity;
+  requires_approval?: boolean;
+  sla_due_at?: string | null;
+  technical_comment: string;
+}
+
 export interface TicketFilters {
   page?: number;
   page_size?: number;
@@ -164,6 +173,7 @@ export interface TicketFilters {
   has_fuel_nozzles_stopped?: boolean | "";
   min_estimated_cost?: string | "";
   max_estimated_cost?: string | "";
+  queue?: "engineering" | "";
 }
 
 export type TicketListResponse = PaginatedResponse<Ticket>;
