@@ -1,4 +1,11 @@
-from app.models.enums import PriorityLevel, TicketCategory, TicketStatus, UserRole
+from app.models.enums import (
+    ApprovalStatus,
+    PriorityLevel,
+    TicketCategory,
+    TicketSeverity,
+    TicketStatus,
+    UserRole,
+)
 
 
 def test_user_roles_match_expected_contract() -> None:
@@ -48,4 +55,22 @@ def test_priorities_match_expected_contract() -> None:
         "medium",
         "high",
         "critical",
+    ]
+
+
+def test_ticket_severities_match_expected_contract() -> None:
+    assert [severity.value for severity in TicketSeverity] == [
+        "low",
+        "medium",
+        "high",
+        "critical",
+    ]
+
+
+def test_approval_statuses_match_expected_contract() -> None:
+    assert [status.value for status in ApprovalStatus] == [
+        "pending",
+        "approved",
+        "rejected",
+        "canceled",
     ]

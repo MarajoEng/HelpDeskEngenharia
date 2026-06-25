@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Numeric, Stri
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
-from app.models.enums import PriorityLevel, TicketCategory, TicketStatus
+from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
 
 
 class Ticket(TimestampMixin, Base):
@@ -38,7 +38,16 @@ class Ticket(TimestampMixin, Base):
         Enum(PriorityLevel, name="priority_level", native_enum=False),
         nullable=False,
     )
-    severity: Mapped[str] = mapped_column(String(50), nullable=False)
+    severity: Mapped[TicketSeverity] = mapped_column(
+        Enum(
+            TicketSeverity,
+            name="ticket_severity",
+            native_enum=False,
+            create_constraint=True,
+            length=50,
+        ),
+        nullable=False,
+    )
     status: Mapped[TicketStatus] = mapped_column(
         Enum(TicketStatus, name="ticket_status", native_enum=False),
         nullable=False,

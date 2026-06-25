@@ -1,10 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin
+from app.models.enums import ApprovalStatus
 
 
 class Approval(CreatedAtMixin, Base):
@@ -18,7 +19,16 @@ class Approval(CreatedAtMixin, Base):
     ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False)
     requested_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     approved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
-    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[ApprovalStatus] = mapped_column(
+        Enum(
+            ApprovalStatus,
+            name="approval_status",
+            native_enum=False,
+            create_constraint=True,
+            length=50,
+        ),
+        nullable=False,
+    )
     amount_requested: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     amount_approved: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     justification: Mapped[str] = mapped_column(Text, nullable=False)

@@ -1,6 +1,13 @@
 from app.models.approval import Approval
 from app.models.base import Base
-from app.models.enums import PriorityLevel, TicketCategory, TicketStatus, UserRole
+from app.models.enums import (
+    ApprovalStatus,
+    PriorityLevel,
+    TicketCategory,
+    TicketSeverity,
+    TicketStatus,
+    UserRole,
+)
 from app.models.supplier import Supplier
 from app.models.ticket import Ticket
 from app.models.ticket_attachment import TicketAttachment
@@ -10,6 +17,7 @@ from app.models.user import User
 
 __all__ = [
     "Approval",
+    "ApprovalStatus",
     "Base",
     "PriorityLevel",
     "Supplier",
@@ -17,6 +25,7 @@ __all__ = [
     "TicketAttachment",
     "TicketCategory",
     "TicketHistory",
+    "TicketSeverity",
     "TicketStatus",
     "Unit",
     "User",

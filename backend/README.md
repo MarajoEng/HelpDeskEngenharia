@@ -46,6 +46,12 @@ source .venv/bin/activate
 alembic upgrade head
 ```
 
+## Contratos da FASE 2.1
+
+- `tickets.severity`: enum controlado com `low`, `medium`, `high` e `critical`.
+- `approvals.status`: enum controlado com `pending`, `approved`, `rejected` e `canceled`.
+- A revision atual do Alembic passa a ser `0002`.
+
 ## Rodar testes
 
 ```bash
