@@ -5,11 +5,13 @@ import { useAuth } from "../../hooks/useAuth";
 
 export default function AppLayout({ children }: PropsWithChildren) {
   const { logout, user } = useAuth();
+  const canAccessDashboard = user?.role !== "supplier";
   const canAccessTickets = user?.role !== "supplier";
   const canAccessEngineering = user?.role === "admin" || user?.role === "engineering";
   const canAccessApprovalLevels = user?.role === "admin";
   const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
   const canAccessSuppliers = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
+  const canAccessAlerts = user?.role !== "supplier";
   const canAccessUsers = user?.role === "admin";
 
   return (
@@ -24,14 +26,16 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </div>
 
         <nav className="shell__nav" aria-label="Navegacao principal">
-          <NavLink
-            to="/"
-            className={({ isActive }) =>
-              isActive ? "nav-link nav-link--active" : "nav-link"
-            }
-          >
-            Visao geral
-          </NavLink>
+          {canAccessDashboard ? (
+            <NavLink
+              to="/dashboard"
+              className={({ isActive }) =>
+                isActive ? "nav-link nav-link--active" : "nav-link"
+              }
+            >
+              Dashboard
+            </NavLink>
+          ) : null}
           {canAccessTickets ? (
             <>
               <NavLink
@@ -72,6 +76,16 @@ export default function AppLayout({ children }: PropsWithChildren) {
               </NavLink>
             </>
           ) : null}
+          {canAccessAlerts ? (
+            <NavLink
+              to="/alerts"
+              className={({ isActive }) =>
+                isActive ? "nav-link nav-link--active" : "nav-link"
+              }
+            >
+              Alertas
+            </NavLink>
+          ) : null}
           {canAccessSuppliers ? (
             <NavLink
               to="/suppliers"
@@ -105,9 +119,9 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </nav>
 
         <div className="shell__sidebar-card">
-          <span className="status-badge status-badge--info">Fase 9</span>
+          <span className="status-badge status-badge--info">Fase 11</span>
           <p>
-            Execucao de chamados, fornecedores e progresso com indicadores em tempo real.
+            Dashboard operacional com SLA, custos, unidades criticas e indicadores reais da rede.
           </p>
         </div>
       </aside>

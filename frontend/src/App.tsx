@@ -4,9 +4,11 @@ import AppLayout from "./components/layout/AppLayout";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import ApprovalLevelsPage from "./pages/ApprovalLevelsPage";
 import CreateTicketPage from "./pages/CreateTicketPage";
+import DashboardPage from "./pages/DashboardPage";
 import EngineeringQueuePage from "./pages/EngineeringQueuePage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import AlertsPage from "./pages/AlertsPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import TicketsPage from "./pages/TicketsPage";
@@ -56,7 +58,7 @@ function LoginRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <LoginPage />;
@@ -69,11 +71,13 @@ export default function App() {
         <Route path="/login" element={<LoginRoute />} />
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/approval-levels" element={<ApprovalLevelsPage />} />
           <Route path="/engineering" element={<EngineeringQueuePage />} />
           <Route path="/tickets" element={<TicketsPage />} />
           <Route path="/tickets/new" element={<CreateTicketPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
+          <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/suppliers" element={<SuppliersPage />} />
           <Route path="/units" element={<UnitsPage />} />
           <Route path="/users" element={<UsersPage />} />

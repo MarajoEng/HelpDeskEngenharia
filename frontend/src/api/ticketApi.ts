@@ -3,11 +3,13 @@ import type {
   Ticket,
   TicketApprovalDecisionPayload,
   TicketApprovalRequestPayload,
+  TicketClosePayload,
   TicketCreatePayload,
   TicketDetail,
   TicketFilters,
   TicketListResponse,
   TicketProgressUpdatePayload,
+  TicketResolvePayload,
   TicketStartExecutionPayload,
   TicketTriagePayload,
 } from "../types/ticket";
@@ -101,6 +103,22 @@ export function startTicketExecution(token: string, ticketId: number, payload: T
 
 export function updateTicketProgress(token: string, ticketId: number, payload: TicketProgressUpdatePayload) {
   return requestJson<TicketDetail>(`/tickets/${ticketId}/progress`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function resolveTicket(token: string, ticketId: number, payload: TicketResolvePayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/resolve`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function closeTicket(token: string, ticketId: number, payload: TicketClosePayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/close`, {
     method: "PATCH",
     headers: authHeaders(token),
     body: JSON.stringify(payload),

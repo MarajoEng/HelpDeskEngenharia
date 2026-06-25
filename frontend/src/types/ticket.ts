@@ -1,4 +1,5 @@
 import type { UserRole } from "./auth";
+import type { TicketAttachment } from "./attachment";
 import type { PaginatedResponse } from "./pagination";
 
 export type TicketCategory =
@@ -73,6 +74,11 @@ export interface TicketIndicators {
   sla_status: SlaStatus;
   elapsed_execution_hours: number | null;
   execution_is_late: boolean;
+  total_hours: number | null;
+  resolution_hours: number | null;
+  closure_hours: number | null;
+  final_cost: string | null;
+  has_closing_evidence: boolean;
 }
 
 export interface TicketApproval {
@@ -130,6 +136,7 @@ export interface Ticket {
   opened_by_user_name?: string | null;
   assigned_to_user_name?: string | null;
   supplier_name?: string | null;
+  has_closing_evidence: boolean;
 }
 
 export interface TicketDetail {
@@ -169,6 +176,7 @@ export interface TicketDetail {
   supplier: TicketSupplierSummary | null;
   history: TicketHistory[];
   approvals: TicketApproval[];
+  attachments: TicketAttachment[];
   indicators: TicketIndicators;
 }
 
@@ -220,6 +228,15 @@ export interface TicketProgressUpdatePayload {
   estimated_cost?: string | null;
   supplier_id?: number | null;
   assigned_to_user_id?: number | null;
+}
+
+export interface TicketResolvePayload {
+  solution_description: string;
+  final_cost: string;
+}
+
+export interface TicketClosePayload {
+  close_comment: string;
 }
 
 export interface TicketFilters {

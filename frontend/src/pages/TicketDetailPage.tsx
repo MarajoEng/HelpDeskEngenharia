@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import ApprovalDecisionModal from "../components/tickets/ApprovalDecisionModal";
+import CloseTicketModal from "../components/tickets/CloseTicketModal";
+import EvidenceSection from "../components/tickets/EvidenceSection";
 import ProgressUpdateModal from "../components/tickets/ProgressUpdateModal";
+import ResolveTicketModal from "../components/tickets/ResolveTicketModal";
 import RequestApprovalModal from "../components/tickets/RequestApprovalModal";
 import StartExecutionModal from "../components/tickets/StartExecutionModal";
 import TriageTicketModal from "../components/tickets/TriageTicketModal";
@@ -237,6 +240,9 @@ export default function TicketDetailPage() {
   const [isDecisionOpen, setIsDecisionOpen] = useState(false);
   const [isStartExecutionOpen, setIsStartExecutionOpen] = useState(false);
   const [isProgressOpen, setIsProgressOpen] = useState(false);
+  const [isResolveOpen, setIsResolveOpen] = useState(false);
+  const [isCloseOpen, setIsCloseOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!token || !ticketId) return;
@@ -263,7 +269,7 @@ export default function TicketDetailPage() {
     return () => {
       isActive = false;
     };
-  }, [ticketId, token]);
+  }, [ticketId, token, reloadKey]);
 
   const pendingApproval = useMemo(() => {
     if (!ticket) return null;
@@ -317,6 +323,18 @@ export default function TicketDetailPage() {
     !(ticket.status === "approved" && !ticket.requires_approval);
   const canUpdateProgress =
     canAccessEngineeringQueue(user?.role) && ticket.status === "in_progress";
+  const canResolveTicket =
+    canAccessEngineeringQueue(user?.role) && ticket.status === "in_progress";
+  const canCloseTicket =
+    canAccessEngineeringQueue(user?.role) && ticket.status === "resolved";
+  const canUploadEvidence = Boolean(
+    user &&
+      (
+        user.role === "admin" ||
+        user.role === "engineering" ||
+        (user.role === "manager" && user.unit_id === ticket.unit_id)
+      ),
+  );
 
   return (
     <section className="page">
@@ -361,6 +379,16 @@ export default function TicketDetailPage() {
               Registrar progresso
             </button>
           ) : null}
+          {canResolveTicket ? (
+            <button className="button-primary" type="button" onClick={() => setIsResolveOpen(true)}>
+              Resolver chamado
+            </button>
+          ) : null}
+          {canCloseTicket ? (
+            <button className="button-primary" type="button" onClick={() => setIsCloseOpen(true)}>
+              Fechar chamado
+            </button>
+          ) : null}
           <Link className="button-secondary button-primary--link" to="/tickets">
             Voltar
           </Link>
@@ -376,6 +404,11 @@ export default function TicketDetailPage() {
       {shouldShowNoAuthorityMessage ? (
         <div className="state-card">
           Seu perfil nao possui alcada para aprovar este valor.
+        </div>
+      ) : null}
+      {canResolveTicket && !ticket.indicators.has_closing_evidence ? (
+        <div className="state-card state-card--error">
+          Anexe uma evidencia de conclusao antes de resolver.
         </div>
       ) : null}
 
@@ -416,8 +449,30 @@ export default function TicketDetailPage() {
               <dd>{indicators.elapsed_hours != null ? `${indicators.elapsed_hours}h` : "—"}</dd>
             </div>
             <div>
+              <dt>Tempo total</dt>
+              <dd>{indicators.total_hours != null ? `${indicators.total_hours}h` : "—"}</dd>
+            </div>
+            <div>
+              <dt>Tempo ate resolver</dt>
+              <dd>{indicators.resolution_hours != null ? `${indicators.resolution_hours}h` : "—"}</dd>
+            </div>
+            <div>
+              <dt>Tempo ate fechar</dt>
+              <dd>{indicators.closure_hours != null ? `${indicators.closure_hours}h` : "—"}</dd>
+            </div>
+            <div>
               <dt>Perda estimada total</dt>
               <dd>{formatMoney(indicators.estimated_loss_total)}</dd>
+            </div>
+            <div>
+              <dt>Custo final</dt>
+              <dd>{formatMoney(indicators.final_cost)}</dd>
+            </div>
+            <div>
+              <dt>Evidencia final</dt>
+              <dd style={{ color: indicators.has_closing_evidence ? "var(--success)" : "var(--warning)" }}>
+                {indicators.has_closing_evidence ? "Disponivel" : "Pendente"}
+              </dd>
             </div>
             <div>
               <dt>Atrasado</dt>
@@ -516,6 +571,22 @@ export default function TicketDetailPage() {
               </dd>
             </div>
             <div>
+              <dt>Resolvido em</dt>
+              <dd>{formatDate(ticket.resolved_at)}</dd>
+            </div>
+            <div>
+              <dt>Fechado em</dt>
+              <dd>{formatDate(ticket.closed_at)}</dd>
+            </div>
+            <div>
+              <dt>Custo final</dt>
+              <dd>{formatMoney(ticket.final_cost)}</dd>
+            </div>
+            <div>
+              <dt>Evidencia de conclusao</dt>
+              <dd>{ticket.indicators.has_closing_evidence ? "Disponivel" : "Pendente"}</dd>
+            </div>
+            <div>
               <dt>Ultima atualizacao</dt>
               <dd>{formatDate(ticket.updated_at)}</dd>
             </div>
@@ -532,6 +603,19 @@ export default function TicketDetailPage() {
             <h2>Impacto operacional</h2>
             <p>{ticket.operational_impact}</p>
           </article>
+        ) : null}
+
+        {token ? (
+          <EvidenceSection
+            ticketId={ticket.id}
+            token={token}
+            initialAttachments={ticket.attachments}
+            canUpload={canUploadEvidence}
+            onUploaded={() => {
+              setReloadKey((current) => current + 1);
+              setSuccessMessage("Evidencia atualizada com sucesso.");
+            }}
+          />
         ) : null}
 
         <div>
@@ -565,7 +649,7 @@ export default function TicketDetailPage() {
         </div>
 
         <article className="state-card">
-          Encerramento, upload, dashboard, relatorios e Celery continuam fora do escopo desta fase.
+          Dashboard, relatorios, notificacoes e Celery continuam fora do escopo desta fase.
         </article>
       </section>
 
@@ -632,6 +716,32 @@ export default function TicketDetailPage() {
             setTicket(updatedTicket);
             setIsProgressOpen(false);
             setSuccessMessage(`Progresso registrado para ${updatedTicket.ticket_number}.`);
+          }}
+        />
+      ) : null}
+
+      {isResolveOpen && token ? (
+        <ResolveTicketModal
+          ticket={ticket}
+          token={token}
+          onClose={() => setIsResolveOpen(false)}
+          onSuccess={(updatedTicket) => {
+            setTicket(updatedTicket);
+            setReloadKey((current) => current + 1);
+            setSuccessMessage(`Resolucao registrada para ${updatedTicket.ticket_number}.`);
+          }}
+        />
+      ) : null}
+
+      {isCloseOpen && token ? (
+        <CloseTicketModal
+          ticket={ticket}
+          token={token}
+          onClose={() => setIsCloseOpen(false)}
+          onSuccess={(updatedTicket) => {
+            setTicket(updatedTicket);
+            setIsCloseOpen(false);
+            setSuccessMessage(`Fechamento registrado para ${updatedTicket.ticket_number}.`);
           }}
         />
       ) : null}

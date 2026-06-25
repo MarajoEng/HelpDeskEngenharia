@@ -518,6 +518,12 @@ a {
   gap: 16px;
 }
 
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .summary-card {
   border: 1px solid var(--line);
   border-radius: 22px;
@@ -552,6 +558,13 @@ a {
 .approval-stack {
   display: grid;
   gap: 16px;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
 }
 
 .approval-card {
@@ -722,6 +735,107 @@ a {
   justify-content: flex-end;
 }
 
+.evidence-uploader {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.evidence-uploader__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.evidence-card {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.62);
+  display: grid;
+  gap: 14px;
+}
+
+.evidence-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.evidence-card__meta {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.evidence-card__meta div {
+  display: grid;
+  gap: 4px;
+}
+
+.evidence-card__meta dt {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.evidence-card__meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-filters {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.metric-bar-list {
+  display: grid;
+  gap: 14px;
+}
+
+.metric-bar {
+  display: grid;
+  gap: 8px;
+}
+
+.metric-bar__label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.metric-bar__track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(24, 37, 37, 0.08);
+  overflow: hidden;
+}
+
+.metric-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -797,10 +911,15 @@ a {
   .ticket-grid,
   .filters--form,
   .summary-grid,
+  .dashboard-kpi-grid,
   .ticket-triage-grid,
   .engineering-filters,
   .details-list--metrics,
-  .checkbox-grid {
+  .checkbox-grid,
+  .evidence-grid,
+  .evidence-uploader,
+  .dashboard-columns,
+  .dashboard-filters {
     grid-template-columns: 1fr;
   }
 
@@ -811,7 +930,9 @@ a {
   .engineering-toolbar,
   .header-actions,
   .table-actions,
-  .approval-card__header {
+  .approval-card__header,
+  .section-heading,
+  .evidence-uploader__actions {
     flex-direction: column;
     align-items: flex-start;
   }

@@ -102,6 +102,13 @@ function formatDate(value: string) {
   });
 }
 
+function formatMoney(value: string | null) {
+  if (!value) return "—";
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return value;
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount);
+}
+
 function statusClass(status: TicketStatus) {
   if (status === "open") return "status-badge status-badge--info";
   if (status === "resolved" || status === "closed" || status === "approved") return "status-badge status-badge--success";
@@ -403,6 +410,10 @@ export default function TicketsPage() {
                     <th>Prioridade</th>
                     <th>Severidade</th>
                     <th>Abertura</th>
+                    <th>Resolvido em</th>
+                    <th>Fechado em</th>
+                    <th>Custo final</th>
+                    <th>Evidencia final</th>
                     <th>SLA</th>
                     <th></th>
                   </tr>
@@ -443,6 +454,20 @@ export default function TicketsPage() {
                         </td>
                         <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
                           {formatDate(ticket.opened_at)}
+                        </td>
+                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
+                          {ticket.resolved_at ? formatDate(ticket.resolved_at) : "—"}
+                        </td>
+                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
+                          {ticket.closed_at ? formatDate(ticket.closed_at) : "—"}
+                        </td>
+                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
+                          {formatMoney(ticket.final_cost)}
+                        </td>
+                        <td>
+                          <span className={ticket.has_closing_evidence ? "status-badge status-badge--success" : "status-badge status-badge--muted"}>
+                            {ticket.has_closing_evidence ? "Com evidencia" : "Sem evidencia"}
+                          </span>
                         </td>
                         <td>
                           {ticket.sla_due_at ? (
