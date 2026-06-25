@@ -19,6 +19,9 @@ Exemplo:
 
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/helpdesk_engenharia
+SECRET_KEY=change-me-in-dev
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+ALGORITHM=HS256
 ```
 
 ## Instalar dependencias
@@ -52,6 +55,28 @@ alembic upgrade head
 - `approvals.status`: enum controlado com `pending`, `approved`, `rejected` e `canceled`.
 - A revision atual do Alembic passa a ser `0002`.
 
+## Autenticacao da FASE 3
+
+- `POST /auth/login`: recebe email e senha e retorna `access_token` JWT.
+- `GET /auth/me`: exige bearer token valido e devolve o usuario autenticado.
+- Usuario inativo nao consegue autenticar nem reutilizar token.
+- Permissoes iniciais por perfil ficam centralizadas no backend via `require_roles`.
+
+## Criar admin de desenvolvimento
+
+Uso apenas para ambiente local e testes.
+
+```bash
+cd backend
+source .venv/bin/activate
+python scripts/create_admin.py
+```
+
+Credenciais dev documentadas:
+
+- email: `admin@local.test`
+- password: `admin123`
+
 ## Rodar testes
 
 ```bash
@@ -62,4 +87,4 @@ pytest
 
 ## Observacao de teste
 
-Os testes de metadata usam SQLite apenas para validar a estrutura dos models sem depender de um PostgreSQL real.
+Os testes de metadata e autenticacao usam SQLite em memoria para validar estrutura, login, token e autorizacao sem depender de um PostgreSQL real.

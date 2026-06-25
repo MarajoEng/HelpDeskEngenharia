@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+psycopg://postgres:postgres@localhost:5432/helpdesk_engenharia"
     )
+    secret_key: str = "change-me-in-dev"
+    access_token_expire_minutes: int = 60
+    algorithm: str = "HS256"
 
     model_config = SettingsConfigDict(
         env_file=".env",

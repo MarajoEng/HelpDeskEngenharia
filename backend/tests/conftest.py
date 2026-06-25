@@ -1,0 +1,104 @@
+from collections.abc import AsyncGenerator, Generator
+
+import httpx
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.core.config import get_settings
+from app.core.database import get_db_session
+from app.core.security import create_access_token, hash_password
+from app.main import app
+from app.models import Base
+from app.models.enums import UserRole
+from app.models.user import User
+
+
+@pytest.fixture(autouse=True)
+def auth_settings(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    monkeypatch.setenv("SECRET_KEY", "test-secret-key")
+    monkeypatch.setenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+    monkeypatch.setenv("ALGORITHM", "HS256")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+def db_session() -> Generator[Session, None, None]:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    testing_session_factory = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+    )
+
+    Base.metadata.create_all(bind=engine)
+    session = testing_session_factory()
+
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+
+@pytest.fixture
+async def client(db_session: Session) -> AsyncGenerator[httpx.AsyncClient, None]:
+    def override_get_db_session() -> Generator[Session, None, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db_session] = override_get_db_session
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as async_client:
+        yield async_client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def create_user(db_session: Session):
+    def factory(
+        *,
+        name: str = "Admin",
+        email: str = "admin@local.test",
+        password: str = "admin123",
+        role: UserRole = UserRole.ADMIN,
+        unit_id: int | None = None,
+        is_active: bool = True,
+    ) -> User:
+        user = User(
+            name=name,
+            email=email,
+            password_hash=hash_password(password),
+            role=role,
+            unit_id=unit_id,
+            is_active=is_active,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+        return user
+
+    return factory
+
+
+@pytest.fixture
+def auth_header_for_user():
+    def factory(user: User) -> dict[str, str]:
+        token = create_access_token(
+            user.id,
+            extra_claims={"role": user.role.value},
+        )
+        return {"Authorization": f"Bearer {token}"}
+
+    return factory
