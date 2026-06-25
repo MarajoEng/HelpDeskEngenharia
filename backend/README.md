@@ -1,6 +1,6 @@
 # Backend
 
-Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia, incluindo triagem tecnica da FASE 7, aprovacao da FASE 8, execucao da FASE 9, encerramento auditavel da FASE 10 e dashboard operacional da FASE 11.
+Base do backend em FastAPI com SQLAlchemy e Alembic para o Portal de Chamados Engenharia, incluindo triagem tecnica da FASE 7, aprovacao da FASE 8, execucao da FASE 9, encerramento auditavel da FASE 10, dashboard operacional da FASE 11 e relatorios/exportacao CSV da FASE 15.
 
 ## Estrutura
 
@@ -24,6 +24,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 ALGORITHM=HS256
 MAX_UPLOAD_SIZE_MB=10
 UPLOAD_DIR=uploads
+REPORT_EXPORT_MAX_ROWS=5000
 ```
 
 ## Instalar dependencias
@@ -215,9 +216,67 @@ Regras:
 Limitacoes preservadas:
 
 - sem storage externo
-- sem relatorios
 - sem Celery
 - sem notificacoes
+
+## Relatorios da FASE 15
+
+Endpoints de listagem:
+
+- `GET /reports/tickets`
+- `GET /reports/costs`
+- `GET /reports/sla`
+- `GET /reports/units`
+- `GET /reports/suppliers`
+
+Endpoints de exportacao CSV:
+
+- `GET /reports/tickets/export.csv`
+- `GET /reports/costs/export.csv`
+- `GET /reports/sla/export.csv`
+- `GET /reports/units/export.csv`
+- `GET /reports/suppliers/export.csv`
+
+Permissoes:
+
+- `admin` e `director`: acesso a todos os relatorios
+- `engineering`: acesso operacional e executivo da rede
+- `manager`: acesso apenas no escopo da propria unidade
+- `supplier`: bloqueado
+
+Filtros disponiveis:
+
+- `date_from`
+- `date_to`
+- `unit_id`
+- `region`
+- `status`
+- `category`
+- `priority`
+- `severity`
+- `supplier_id`
+- `only_late`
+- `requires_approval`
+- `min_estimated_cost`
+- `max_estimated_cost`
+- `page`
+- `page_size`
+
+Regras principais:
+
+- filtros e agregacoes executam no banco
+- listagens sao sempre paginadas
+- exportacao reutiliza as mesmas permissoes e os mesmos filtros da consulta
+- `manager` nunca consulta outra unidade
+- CSV usa UTF-8, possui cabecalho e nao exporta dados sensiveis
+- o backend nao usa `SELECT *` neste modulo
+- se o total filtrado exceder `REPORT_EXPORT_MAX_ROWS`, a exportacao eh bloqueada com mensagem clara para refinamento dos filtros
+
+Auditoria:
+
+- `report_viewed`: registra tipo de relatorio, filtros e quantidade retornada
+- `report_exported`: registra tipo de relatorio, filtros e quantidade exportada
+- a auditoria salva apenas metadados seguros e nao interrompe o fluxo principal em caso de falha isolada
 
 ## Dashboard operacional da FASE 11
 

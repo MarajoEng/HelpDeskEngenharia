@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { closeTicket } from "../../api/ticketApi";
+import ConfirmDialog from "../ui/ConfirmDialog";
 import type { TicketDetail } from "../../types/ticket";
 
 interface Props {
@@ -14,20 +15,21 @@ export default function CloseTicketModal({ ticket, token, onClose, onSuccess }: 
   const [closeComment, setCloseComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
-  function handleSubmit(event: React.FormEvent) {
+  function requestConfirm(event: React.FormEvent) {
     event.preventDefault();
-
     if (!closeComment.trim()) {
       setError("Comentario de fechamento e obrigatorio.");
       return;
     }
-    if (!window.confirm("Confirmar o fechamento final deste chamado?")) {
-      return;
-    }
+    setIsConfirmOpen(true);
+  }
 
+  function confirmClose() {
     setIsSubmitting(true);
     setError(null);
+    setIsConfirmOpen(false);
 
     closeTicket(token, ticket.id, {
       close_comment: closeComment.trim(),
@@ -56,7 +58,7 @@ export default function CloseTicketModal({ ticket, token, onClose, onSuccess }: 
           </button>
         </div>
 
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid" onSubmit={requestConfirm}>
           {error ? <div className="state-card state-card--error">{error}</div> : null}
 
           <label className="field field--full">
@@ -79,6 +81,17 @@ export default function CloseTicketModal({ ticket, token, onClose, onSuccess }: 
           </div>
         </form>
       </div>
+      {isConfirmOpen ? (
+        <ConfirmDialog
+          title="Confirmar fechamento"
+          description="O chamado sera encerrado definitivamente e o historico sera registrado."
+          confirmLabel="Fechar chamado"
+          onConfirm={confirmClose}
+          onClose={() => setIsConfirmOpen(false)}
+          isProcessing={isSubmitting}
+          tone="danger"
+        />
+      ) : null}
     </div>
   );
 }

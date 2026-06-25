@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import AppLayout from "./components/layout/AppLayout";
+import LoadingState from "./components/ui/LoadingState";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import ApprovalLevelsPage from "./pages/ApprovalLevelsPage";
 import CreateTicketPage from "./pages/CreateTicketPage";
@@ -10,6 +11,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import AlertsPage from "./pages/AlertsPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
+import ReportsPage from "./pages/ReportsPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import TicketsPage from "./pages/TicketsPage";
@@ -23,11 +25,10 @@ function ProtectedShell() {
   if (isLoading) {
     return (
       <div className="screen-state">
-        <div className="screen-state__card panel">
-          <p className="eyebrow">Autenticacao</p>
-          <h2>Validando sessao</h2>
-          <p>Aguarde enquanto o token atual eh conferido no backend.</p>
-        </div>
+        <LoadingState
+          title="Validando sessao"
+          description="Aguarde enquanto o token atual eh conferido no backend."
+        />
       </div>
     );
   }
@@ -49,11 +50,10 @@ function LoginRoute() {
   if (isLoading) {
     return (
       <div className="screen-state">
-        <div className="screen-state__card panel">
-          <p className="eyebrow">Autenticacao</p>
-          <h2>Preparando acesso</h2>
-          <p>Carregando contexto do usuario.</p>
-        </div>
+        <LoadingState
+          title="Preparando acesso"
+          description="Carregando o contexto da sessao autenticada."
+        />
       </div>
     );
   }
@@ -78,6 +78,7 @@ export default function App() {
           <Route path="/tickets" element={<TicketsPage />} />
           <Route path="/tickets/new" element={<CreateTicketPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/audit-logs" element={<AuditLogsPage />} />
           <Route path="/suppliers" element={<SuppliersPage />} />

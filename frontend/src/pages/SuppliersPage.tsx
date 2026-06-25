@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
 
 import { createSupplier, listSuppliers, updateSupplier } from "../api/supplierApi";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/ui/ErrorState";
+import FilterBar from "../components/ui/FilterBar";
+import Input from "../components/ui/Input";
+import LoadingState from "../components/ui/LoadingState";
+import Modal from "../components/ui/Modal";
+import PageHeader from "../components/ui/PageHeader";
+import Pagination from "../components/ui/Pagination";
+import Select from "../components/ui/Select";
+import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
 import type { Supplier, SupplierCreatePayload, SupplierUpdatePayload } from "../types/supplier";
+import { formatShortDate } from "../utils/formatters";
+import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
 
 const initialForm: SupplierCreatePayload = {
   name: "",
@@ -12,10 +26,6 @@ const initialForm: SupplierCreatePayload = {
   specialty: "",
   is_active: true,
 };
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("pt-BR");
-}
 
 interface SupplierModalProps {
   token: string;
@@ -40,16 +50,18 @@ function SupplierModal({ token, editing, onClose, onSaved }: SupplierModalProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    const { name, value, type } = e.target;
+  function handleChange(
+    name: keyof SupplierCreatePayload,
+    value: SupplierCreatePayload[keyof SupplierCreatePayload],
+  ) {
     setForm((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
+      [name]: value,
     }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
@@ -59,115 +71,76 @@ function SupplierModal({ token, editing, onClose, onSaved }: SupplierModalProps)
 
     promise
       .then(() => onSaved())
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Erro ao salvar fornecedor.");
+      .catch((requestError: unknown) => {
+        setError(getErrorMessage(requestError, "Erro ao salvar fornecedor."));
         setIsSubmitting(false);
       });
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal__header">
-          <h2>{editing ? "Editar fornecedor" : "Novo fornecedor"}</h2>
-          <button className="modal__close" type="button" onClick={onClose}>
-            ×
-          </button>
+    <Modal
+      title={editing ? "Editar fornecedor" : "Novo fornecedor"}
+      subtitle="Cadastro de parceiro homologado para atendimento da engenharia."
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className="form-grid">
+        {error ? <div className="state-card state-card--error">{error}</div> : null}
+
+        <Input
+          label="Nome"
+          value={form.name}
+          onChange={(event) => handleChange("name", event.target.value)}
+          required
+          maxLength={255}
+        />
+        <Input
+          label="CNPJ / Documento"
+          value={form.document}
+          onChange={(event) => handleChange("document", event.target.value)}
+          required
+          maxLength={50}
+        />
+        <Input
+          label="Telefone"
+          value={form.phone}
+          onChange={(event) => handleChange("phone", event.target.value)}
+          required
+          maxLength={50}
+        />
+        <Input
+          label="E-mail"
+          type="email"
+          value={form.email}
+          onChange={(event) => handleChange("email", event.target.value)}
+          required
+          maxLength={255}
+        />
+        <Input
+          label="Especialidade"
+          value={form.specialty}
+          onChange={(event) => handleChange("specialty", event.target.value)}
+          required
+          maxLength={255}
+        />
+        <label className="field field--checkbox">
+          <input
+            type="checkbox"
+            checked={form.is_active}
+            onChange={(event) => handleChange("is_active", event.target.checked)}
+          />
+          <span>Fornecedor ativo</span>
+        </label>
+
+        <div className="form-actions">
+          <Button variant="secondary" type="button" onClick={onClose} disabled={isSubmitting}>
+            Cancelar
+          </Button>
+          <Button variant="primary" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Salvando..." : "Salvar"}
+          </Button>
         </div>
-
-        <form onSubmit={handleSubmit} className="modal__body">
-          {error ? <div className="state-card state-card--error">{error}</div> : null}
-
-          <div className="field">
-            <label htmlFor="sup-name">Nome *</label>
-            <input
-              id="sup-name"
-              name="name"
-              className="input"
-              value={form.name}
-              onChange={handleChange}
-              required
-              maxLength={255}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="sup-document">CNPJ / Documento *</label>
-            <input
-              id="sup-document"
-              name="document"
-              className="input"
-              value={form.document}
-              onChange={handleChange}
-              required
-              maxLength={50}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="sup-phone">Telefone *</label>
-            <input
-              id="sup-phone"
-              name="phone"
-              className="input"
-              value={form.phone}
-              onChange={handleChange}
-              required
-              maxLength={50}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="sup-email">E-mail *</label>
-            <input
-              id="sup-email"
-              name="email"
-              type="email"
-              className="input"
-              value={form.email}
-              onChange={handleChange}
-              required
-              maxLength={255}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="sup-specialty">Especialidade *</label>
-            <input
-              id="sup-specialty"
-              name="specialty"
-              className="input"
-              value={form.specialty}
-              onChange={handleChange}
-              required
-              maxLength={255}
-            />
-          </div>
-
-          <div className="field">
-            <label>
-              <input
-                type="checkbox"
-                name="is_active"
-                checked={form.is_active}
-                onChange={handleChange}
-                style={{ marginRight: "8px" }}
-              />
-              Ativo
-            </label>
-          </div>
-
-          <div className="modal__footer">
-            <button className="button-secondary" type="button" onClick={onClose} disabled={isSubmitting}>
-              Cancelar
-            </button>
-            <button className="button-primary" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Salvando..." : "Salvar"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -196,14 +169,14 @@ export default function SuppliersPage() {
       search: search || undefined,
       is_active: isActiveFilter === "" ? undefined : isActiveFilter === "true",
     })
-      .then((res) => {
-        setSuppliers(res.items);
-        setTotal(res.total);
-        setPages(res.pages);
+      .then((response) => {
+        setSuppliers(response.items);
+        setTotal(response.total);
+        setPages(response.pages);
         setPage(currentPage);
       })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Erro ao carregar fornecedores.");
+      .catch((requestError: unknown) => {
+        setError(getErrorMessage(requestError, "Erro ao carregar fornecedores."));
       })
       .finally(() => setIsLoading(false));
   }
@@ -229,110 +202,99 @@ export default function SuppliersPage() {
 
   return (
     <section className="page">
-      <div className="page__header">
-        <div>
-          <p className="eyebrow">Cadastro</p>
-          <h2 className="page__title">Fornecedores</h2>
-          <p className="page__description">{total} fornecedor{total !== 1 ? "es" : ""} encontrado{total !== 1 ? "s" : ""}</p>
-        </div>
-        {isAdmin ? (
-          <button className="button-primary" type="button" onClick={openCreate}>
-            Novo fornecedor
-          </button>
-        ) : null}
-      </div>
+      <PageHeader
+        eyebrow="Cadastro"
+        title="Fornecedores"
+        description={`${total} fornecedor${total !== 1 ? "es" : ""} encontrado${total !== 1 ? "s" : ""}`}
+        actions={
+          isAdmin ? (
+            <Button variant="primary" type="button" onClick={openCreate}>
+              Novo fornecedor
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="filter-bar">
-        <input
-          className="input"
-          type="text"
-          placeholder="Buscar por nome, documento ou especialidade..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          className="input"
-          value={isActiveFilter}
-          onChange={(e) => setIsActiveFilter(e.target.value as "" | "true" | "false")}
-        >
-          <option value="">Todos</option>
-          <option value="true">Ativos</option>
-          <option value="false">Inativos</option>
-        </select>
-      </div>
+      <section className="panel panel--stack">
+        <FilterBar columns={2}>
+          <Input
+            label="Busca"
+            type="text"
+            placeholder="Nome, documento ou especialidade..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <Select
+            label="Status"
+            value={isActiveFilter}
+            onChange={(event) => setIsActiveFilter(event.target.value as "" | "true" | "false")}
+          >
+            <option value="">Todos</option>
+            <option value="true">Ativos</option>
+            <option value="false">Inativos</option>
+          </Select>
+        </FilterBar>
 
-      {error ? <div className="state-card state-card--error">{error}</div> : null}
+        {error ? <ErrorState description={error} /> : null}
 
-      {isLoading ? (
-        <div className="state-card">Carregando fornecedores...</div>
-      ) : suppliers.length === 0 ? (
-        <div className="state-card">Nenhum fornecedor encontrado.</div>
-      ) : (
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Documento</th>
-                <th>Telefone</th>
-                <th>E-mail</th>
-                <th>Especialidade</th>
-                <th>Status</th>
-                <th>Cadastro</th>
-                {isAdmin ? <th>Acao</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {suppliers.map((supplier) => (
-                <tr key={supplier.id}>
-                  <td>{supplier.name}</td>
-                  <td>{supplier.document}</td>
-                  <td>{supplier.phone}</td>
-                  <td>{supplier.email}</td>
-                  <td>{supplier.specialty}</td>
-                  <td>
-                    <span className={supplier.is_active ? "status-badge status-badge--success" : "status-badge status-badge--muted"}>
-                      {supplier.is_active ? "Ativo" : "Inativo"}
-                    </span>
-                  </td>
-                  <td>{formatDate(supplier.created_at)}</td>
-                  {isAdmin ? (
-                    <td>
-                      <button className="button-secondary" type="button" onClick={() => openEdit(supplier)}>
-                        Editar
-                      </button>
-                    </td>
-                  ) : null}
+        {isLoading ? (
+          <LoadingState title="Carregando fornecedores" />
+        ) : suppliers.length === 0 ? (
+          <EmptyState title="Nenhum fornecedor encontrado" description={LIST_EMPTY_MESSAGES.suppliers} />
+        ) : (
+          <>
+            <Table minWidth={940}>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Documento</th>
+                  <th>Telefone</th>
+                  <th>E-mail</th>
+                  <th>Especialidade</th>
+                  <th>Status</th>
+                  <th>Cadastro</th>
+                  {isAdmin ? <th>Acao</th> : null}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {suppliers.map((supplier) => (
+                  <tr key={supplier.id}>
+                    <td>{supplier.name}</td>
+                    <td>{supplier.document}</td>
+                    <td>{supplier.phone}</td>
+                    <td>{supplier.email}</td>
+                    <td>{supplier.specialty}</td>
+                    <td>
+                      <Badge tone={supplier.is_active ? "success" : "neutral"}>
+                        {supplier.is_active ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </td>
+                    <td>{formatShortDate(supplier.created_at)}</td>
+                    {isAdmin ? (
+                      <td>
+                        <Button variant="secondary" size="sm" type="button" onClick={() => openEdit(supplier)}>
+                          Editar
+                        </Button>
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
 
-      {pages > 1 ? (
-        <div className="pagination">
-          <button
-            className="button-secondary"
-            type="button"
-            disabled={page <= 1}
-            onClick={() => load(page - 1)}
-          >
-            Anterior
-          </button>
-          <span>
-            {page} / {pages}
-          </span>
-          <button
-            className="button-secondary"
-            type="button"
-            disabled={page >= pages}
-            onClick={() => load(page + 1)}
-          >
-            Proxima
-          </button>
-        </div>
-      ) : null}
+            {pages > 1 ? (
+              <Pagination
+                total={total}
+                label="fornecedor(es)"
+                page={page}
+                pages={pages}
+                onPrevious={() => load(page - 1)}
+                onNext={() => load(page + 1)}
+              />
+            ) : null}
+          </>
+        )}
+      </section>
 
       {isModalOpen && token ? (
         <SupplierModal

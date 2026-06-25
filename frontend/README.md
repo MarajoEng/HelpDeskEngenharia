@@ -1,6 +1,6 @@
 # Frontend
 
-React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao (FASE 3), cadastros (FASE 4), abertura (FASE 5), listagem/detalhe avancado (FASE 6), triagem (FASE 7), aprovacao (FASE 8), execucao (FASE 9), encerramento com evidencia (FASE 10) e dashboard operacional (FASE 11).
+React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao (FASE 3), cadastros (FASE 4), abertura (FASE 5), listagem/detalhe avancado (FASE 6), triagem (FASE 7), aprovacao (FASE 8), execucao (FASE 9), encerramento com evidencia (FASE 10), dashboard operacional (FASE 11), alertas/auditoria (FASES 12 e 13), padrao visual profissional (FASE 14) e relatorios/exportacao CSV (FASE 15).
 
 ## Estrutura
 
@@ -13,10 +13,12 @@ React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao 
 - `src/api/ticketApi.ts`: integracao com `/tickets`.
 - `src/api/attachmentApi.ts`: upload, listagem e download de evidencias.
 - `src/api/dashboardApi.ts`: integracao com `/dashboard/overview`.
+- `src/api/reportApi.ts`: integracao com `/reports` e exportacao CSV autenticada.
 - `src/pages/LoginPage.tsx`: tela de login.
 - `src/pages/CreateTicketPage.tsx`: abertura de chamado.
 - `src/pages/EngineeringQueuePage.tsx`: fila da engenharia com filtros, cards de resumo e acao de triagem.
 - `src/pages/DashboardPage.tsx`: dashboard executivo e operacional com filtros, cards, rankings e SLA.
+- `src/pages/ReportsPage.tsx`: tela de relatorios com abas por tipo, filtros superiores, tabela paginada e exportacao CSV.
 - `src/pages/TicketsPage.tsx`: listagem paginada com filtros avancados (busca textual, only_late, bicos parados, custo min/max).
 - `src/pages/TicketDetailPage.tsx`: detalhe completo com indicadores finais, evidencias, historico e acoes de encerramento.
 - `src/pages/ApprovalLevelsPage.tsx`: configuracao paginada de alcadas para `admin`.
@@ -29,8 +31,12 @@ React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao 
 - `src/components/tickets/ResolveTicketModal.tsx`: resolucao tecnica com custo final.
 - `src/components/tickets/CloseTicketModal.tsx`: fechamento final auditavel.
 - `src/components/layout/AppLayout.tsx`: shell com sidebar e topbar para usuario logado.
+- `src/components/ui/`: biblioteca leve de componentes visuais reutilizaveis (`Button`, `Badge`, `Input`, `Select`, `Textarea`, `Modal`, `Table`, `Pagination`, `EmptyState`, `LoadingState`, `ErrorState`, `ConfirmDialog`, `PageHeader`, `FilterBar`, `StatCard`, `StatusBadge`, `PriorityBadge`, `SeverityBadge`).
+- `src/utils/messages.ts`: normalizacao de mensagens operacionais e vazios padronizados.
+- `src/utils/formatters.ts`: formatacao central de datas, moeda e campos `datetime-local`.
 - `src/pages/HomePage.tsx`: area inicial autenticada.
-- `src/styles/global.css`: identidade visual e estados base.
+- `src/styles/global.css`: identidade visual historica e classes legadas.
+- `src/styles/ui.css`: consolidacao da FASE 14 para layout, formularios, tabelas, badges, modais e responsividade basica.
 
 ## Variaveis
 
@@ -56,6 +62,40 @@ npm run dev
 cd frontend
 npm run build
 ```
+
+## Padrao UX (FASE 14)
+
+- Layout principal com sidebar agrupada por `Operacao` e `Administracao`, topbar com contexto de sessao, destaque de rota ativa e comportamento adaptado para telas menores.
+- Formularios com labels sempre visiveis, foco visual consistente, mensagens de erro amigaveis e botoes padronizados.
+- Tabelas administrativas e operacionais com cabecalho claro, badges centralizados, estados de loading/erro/vazio e paginacao uniforme.
+- Badges compartilhados para status, prioridade, severidade, leitura de alerta e estados binarios simples.
+- Confirmacao visual reutilizavel (`ConfirmDialog`) aplicada em acoes criticas de resolucao e fechamento.
+- Mensagens operacionais padronizadas para sessao expirada, sem permissao, nao encontrado, limite de tentativas, upload invalido e erro inesperado.
+
+## Relatorios (FASE 15)
+
+- Menu `Relatorios` visivel apenas para `admin`, `director`, `engineering` e `manager`.
+- Tipos disponiveis: `Chamados`, `Custos`, `SLA`, `Unidades` e `Fornecedores`.
+- A tela reutiliza `PageHeader`, `FilterBar`, `StatCard`, `Table`, `Pagination`, `LoadingState`, `ErrorState`, `EmptyState`, `Button` e badges padronizados.
+- Filtros visuais: periodo, unidade, regiao, status, categoria, prioridade, severidade, fornecedor, atraso e aprovacao.
+- `manager` enxerga a propria unidade travada visualmente; o backend continua como validacao definitiva do escopo.
+- A exportacao CSV usa o token no header `Authorization`, sem expor credenciais na URL.
+- Erros de permissao, sessao expirada e limite de exportacao sao tratados com mensagens operacionais amigaveis.
+
+## Limitacoes desta fase
+
+- sem IA
+- sem integracao externa
+- sem biblioteca pesada de UI
+- sem alteracao de regra critica no backend
+- sem PDF
+- sem Excel
+- sem agendamento automatico
+
+## Testes
+
+- Validacao automatica disponivel nesta fase: `npm run build`
+- Nao ha suite de testes frontend dedicada configurada no projeto ate este ponto.
 
 ## Testar login
 
@@ -163,9 +203,16 @@ npm run build
 - Preview de chamados atrasados com link para detalhe
 - `manager` opera sempre no escopo da propria unidade
 
-## Limitacoes desta fase
+## Relatorios e exportacao CSV (FASE 15)
 
-- sem relatorios
+- API real consumida em `/reports/*`
+- Download de `chamados.csv`, `custos.csv`, `sla.csv`, `unidades.csv` e `fornecedores.csv`
+- Loading dedicado durante exportacao
+- Tabela paginada, filtros aplicados por consulta e estados de vazio/erro
+- Bloqueio amigavel quando o backend informa que o limite de `REPORT_EXPORT_MAX_ROWS` foi excedido
+
+## Limitacoes preservadas
+
 - sem Celery
 - sem notificacoes
 - sem IA

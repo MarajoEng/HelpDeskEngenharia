@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { resolveTicket } from "../../api/ticketApi";
+import ConfirmDialog from "../ui/ConfirmDialog";
 import type { TicketDetail } from "../../types/ticket";
 import { formatMoney } from "./ticketUi";
 
@@ -17,10 +18,10 @@ export default function ResolveTicketModal({ ticket, token, onClose, onSuccess }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
-  function handleSubmit(event: React.FormEvent) {
+  function requestConfirm(event: React.FormEvent) {
     event.preventDefault();
-
     if (!solutionDescription.trim()) {
       setError("Descricao da solucao e obrigatoria.");
       return;
@@ -33,13 +34,14 @@ export default function ResolveTicketModal({ ticket, token, onClose, onSuccess }
       setError("Anexe uma evidencia de conclusao antes de resolver.");
       return;
     }
-    if (!window.confirm("Confirmar a resolucao tecnica deste chamado?")) {
-      return;
-    }
+    setIsConfirmOpen(true);
+  }
 
+  function confirmResolve() {
     setIsSubmitting(true);
     setError(null);
     setSuccess(null);
+    setIsConfirmOpen(false);
 
     resolveTicket(token, ticket.id, {
       solution_description: solutionDescription.trim(),
@@ -72,7 +74,7 @@ export default function ResolveTicketModal({ ticket, token, onClose, onSuccess }
           </button>
         </div>
 
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid" onSubmit={requestConfirm}>
           {error ? <div className="state-card state-card--error">{error}</div> : null}
           {success ? <div className="state-card state-card--success">{success}</div> : null}
 
@@ -125,6 +127,16 @@ export default function ResolveTicketModal({ ticket, token, onClose, onSuccess }
           </div>
         </form>
       </div>
+      {isConfirmOpen ? (
+        <ConfirmDialog
+          title="Confirmar resolucao"
+          description="O chamado sera movido para resolvido com custo final e evidencia validada."
+          confirmLabel="Resolver chamado"
+          onConfirm={confirmResolve}
+          onClose={() => setIsConfirmOpen(false)}
+          isProcessing={isSubmitting}
+        />
+      ) : null}
     </div>
   );
 }

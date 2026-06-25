@@ -3,9 +3,23 @@ import { Link } from "react-router-dom";
 
 import { listTickets } from "../api/ticketApi";
 import { listUnits } from "../api/unitApi";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/ui/ErrorState";
+import FilterBar from "../components/ui/FilterBar";
+import LoadingState from "../components/ui/LoadingState";
+import PageHeader from "../components/ui/PageHeader";
+import Pagination from "../components/ui/Pagination";
+import PriorityBadge from "../components/ui/PriorityBadge";
+import SeverityBadge from "../components/ui/SeverityBadge";
+import StatusBadge from "../components/ui/StatusBadge";
+import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
 import type { Ticket, TicketCategory, TicketFilters, TicketPriority, TicketSeverity, TicketStatus } from "../types/ticket";
 import type { Unit } from "../types/unit";
+import { formatDate, formatMoney } from "../utils/formatters";
+import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
+import { CATEGORY_LABELS, PRIORITY_LABELS, SEVERITY_LABELS, STATUS_LABELS } from "../components/ui/statusOptions";
 
 const initialFilters: TicketFilters = {
   page: 1,
@@ -37,18 +51,10 @@ const statusOptions: Array<{ value: TicketStatus; label: string }> = [
   { value: "canceled", label: "Cancelado" },
 ];
 
-const categoryOptions: Array<{ value: TicketCategory; label: string }> = [
-  { value: "fuel_pump", label: "Bomba" },
-  { value: "fuel_nozzle", label: "Bico" },
-  { value: "electrical", label: "Eletrica" },
-  { value: "plumbing", label: "Hidraulica" },
-  { value: "leak", label: "Vazamento" },
-  { value: "structure", label: "Estrutura" },
-  { value: "roof", label: "Cobertura" },
-  { value: "pavement", label: "Pavimento" },
-  { value: "environmental_risk", label: "Risco ambiental" },
-  { value: "other", label: "Outro" },
-];
+const categoryOptions: Array<{ value: TicketCategory; label: string }> = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
+  value: value as TicketCategory,
+  label,
+}));
 
 const priorityOptions: Array<{ value: TicketPriority; label: string }> = [
   { value: "low", label: "Baixa" },
@@ -63,66 +69,6 @@ const severityOptions: Array<{ value: TicketSeverity; label: string }> = [
   { value: "high", label: "Alta" },
   { value: "critical", label: "Critica" },
 ];
-
-const STATUS_LABELS: Record<TicketStatus, string> = {
-  open: "Aberto",
-  triage: "Triagem",
-  waiting_approval: "Ag. aprovacao",
-  approved: "Aprovado",
-  rejected: "Rejeitado",
-  in_progress: "Em execucao",
-  waiting_supplier: "Ag. fornecedor",
-  waiting_unit: "Ag. unidade",
-  resolved: "Resolvido",
-  closed: "Encerrado",
-  canceled: "Cancelado",
-};
-
-const PRIORITY_LABELS: Record<TicketPriority, string> = {
-  low: "Baixa",
-  medium: "Media",
-  high: "Alta",
-  critical: "Critica",
-};
-
-const SEVERITY_LABELS: Record<TicketSeverity, string> = {
-  low: "Baixa",
-  medium: "Media",
-  high: "Alta",
-  critical: "Critica",
-};
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatMoney(value: string | null) {
-  if (!value) return "—";
-  const amount = Number(value);
-  if (Number.isNaN(amount)) return value;
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount);
-}
-
-function statusClass(status: TicketStatus) {
-  if (status === "open") return "status-badge status-badge--info";
-  if (status === "resolved" || status === "closed" || status === "approved") return "status-badge status-badge--success";
-  if (status === "rejected" || status === "canceled") return "status-badge status-badge--danger";
-  return "status-badge status-badge--muted";
-}
-
-function priorityClass(priority: TicketPriority) {
-  return `priority-badge priority-badge--${priority}`;
-}
-
-function severityClass(severity: TicketSeverity) {
-  return `severity-badge severity-badge--${severity}`;
-}
 
 function unitLabel(ticket: Ticket, units: Unit[]) {
   if (ticket.unit_code || ticket.unit_name) {
@@ -181,7 +127,7 @@ export default function TicketsPage() {
       })
       .catch((error: unknown) => {
         if (!isActive) return;
-        setErrorMessage(error instanceof Error ? error.message : "Nao foi possivel carregar os chamados.");
+        setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar os chamados."));
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
@@ -219,34 +165,32 @@ export default function TicketsPage() {
   if (isSupplier) {
     return (
       <section className="page">
-        <div className="page__header">
-          <div>
-            <p className="eyebrow">Chamados</p>
-            <h2 className="page__title">Acesso indisponivel</h2>
-            <p className="page__description">Fornecedores nao acessam chamados nesta fase.</p>
-          </div>
-        </div>
-        <div className="state-card state-card--error">Seu perfil nao pode acessar a listagem de chamados.</div>
+        <PageHeader
+          eyebrow="Chamados"
+          title="Acesso indisponivel"
+          description="Fornecedores nao acessam chamados nesta fase."
+        />
+        <ErrorState description="Seu perfil nao pode acessar a listagem de chamados." />
       </section>
     );
   }
 
   return (
     <section className="page">
-      <div className="page__header">
-        <div>
-          <p className="eyebrow">Operacao</p>
-          <h2 className="page__title">Chamados</h2>
-          <p className="page__description">Listagem com filtros avancados, busca textual e recorte por perfil.</p>
-        </div>
-        <Link className="button-primary button-primary--link" to="/tickets/new">
-          Abrir chamado
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Operacao"
+        title="Chamados"
+        description="Listagem com filtros, prioridade operacional, SLA e acesso rapido ao detalhe."
+        actions={
+          <Link className="ui-button ui-button--primary button-primary--link" to="/tickets/new">
+            Abrir chamado
+          </Link>
+        }
+      />
 
       <section className="panel">
         <div style={{ display: "grid", gap: "16px", marginBottom: "20px" }}>
-          <div className="filters filters--form">
+          <FilterBar columns={5} className="filters--form">
             <label className="field">
               <span>Busca</span>
               <input
@@ -350,7 +294,7 @@ export default function TicketsPage() {
                 placeholder="0.00"
               />
             </label>
-          </div>
+          </FilterBar>
 
           <div style={{ display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap" }}>
             <label className="field field--checkbox" style={{ margin: 0 }}>
@@ -371,154 +315,112 @@ export default function TicketsPage() {
               <span>Com bicos parados</span>
             </label>
 
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={clearFilters}
-              style={{ marginLeft: "auto" }}
-            >
+            <Button type="button" variant="secondary" onClick={clearFilters} style={{ marginLeft: "auto" }}>
               Limpar filtros
-            </button>
+            </Button>
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="state-card">Carregando chamados...</div>
-        ) : null}
+        {isLoading ? <LoadingState title="Carregando chamados" description="Atualizando a fila operacional." /> : null}
 
-        {!isLoading && errorMessage ? (
-          <div className="state-card state-card--error">{errorMessage}</div>
-        ) : null}
+        {!isLoading && errorMessage ? <ErrorState description={errorMessage} /> : null}
 
         {!isLoading && !errorMessage && data.items.length === 0 ? (
-          <div className="state-card">
-            Nenhum chamado encontrado para os filtros selecionados.
-          </div>
+          <EmptyState
+            title="Nenhum chamado encontrado"
+            description={LIST_EMPTY_MESSAGES.tickets}
+            action={
+              <Link className="ui-link-button" to="/tickets/new">
+                Abrir um novo chamado
+              </Link>
+            }
+          />
         ) : null}
 
         {!isLoading && !errorMessage && data.items.length > 0 ? (
           <>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Chamado</th>
-                    <th>Unidade</th>
-                    <th>Solicitante</th>
-                    <th>Titulo</th>
-                    <th>Status</th>
-                    <th>Prioridade</th>
-                    <th>Severidade</th>
-                    <th>Abertura</th>
-                    <th>Resolvido em</th>
-                    <th>Fechado em</th>
-                    <th>Custo final</th>
-                    <th>Evidencia final</th>
-                    <th>SLA</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((ticket) => {
-                    const late = isSlaLate(ticket);
-                    return (
-                      <tr key={ticket.id}>
-                        <td>
-                          <span style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
-                            {ticket.ticket_number}
+            <Table minWidth={1240}>
+              <thead>
+                <tr>
+                  <th>Chamado</th>
+                  <th>Unidade</th>
+                  <th>Solicitante</th>
+                  <th>Titulo</th>
+                  <th>Status</th>
+                  <th>Prioridade</th>
+                  <th>Severidade</th>
+                  <th>Abertura</th>
+                  <th>Resolvido em</th>
+                  <th>Fechado em</th>
+                  <th>Custo final</th>
+                  <th>Evidencia final</th>
+                  <th>SLA</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((ticket) => {
+                  const late = isSlaLate(ticket);
+                  return (
+                    <tr key={ticket.id}>
+                      <td>
+                        <span className="text-mono text-sm">{ticket.ticket_number}</span>
+                      </td>
+                      <td style={{ fontSize: "0.9rem" }}>{unitLabel(ticket, units)}</td>
+                      <td style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+                        {ticket.opened_by_user_name ?? `#${ticket.opened_by_user_id}`}
+                      </td>
+                      <td style={{ maxWidth: "220px" }}>
+                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {ticket.title}
+                        </span>
+                      </td>
+                      <td>
+                        <StatusBadge status={ticket.status} />
+                      </td>
+                      <td>
+                        <PriorityBadge priority={ticket.priority} />
+                      </td>
+                      <td>
+                        <SeverityBadge severity={ticket.severity} />
+                      </td>
+                      <td className="text-sm">{formatDate(ticket.opened_at)}</td>
+                      <td className="text-sm">{ticket.resolved_at ? formatDate(ticket.resolved_at) : "—"}</td>
+                      <td className="text-sm">{ticket.closed_at ? formatDate(ticket.closed_at) : "—"}</td>
+                      <td className="text-sm">{formatMoney(ticket.final_cost)}</td>
+                      <td>
+                        <span className={ticket.has_closing_evidence ? "ui-badge ui-badge--success" : "ui-badge ui-badge--neutral"}>
+                          {ticket.has_closing_evidence ? "Com evidencia" : "Sem evidencia"}
+                        </span>
+                      </td>
+                      <td>
+                        {ticket.sla_due_at ? (
+                          <span className={late ? "text-danger" : "text-muted"}>
+                            {late ? "Atrasado" : formatDate(ticket.sla_due_at)}
                           </span>
-                        </td>
-                        <td style={{ fontSize: "0.9rem" }}>{unitLabel(ticket, units)}</td>
-                        <td style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-                          {ticket.opened_by_user_name ?? `#${ticket.opened_by_user_id}`}
-                        </td>
-                        <td style={{ maxWidth: "220px" }}>
-                          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {ticket.title}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={statusClass(ticket.status)}>
-                            {STATUS_LABELS[ticket.status] ?? ticket.status}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={priorityClass(ticket.priority)}>
-                            {PRIORITY_LABELS[ticket.priority] ?? ticket.priority}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={severityClass(ticket.severity)}>
-                            {SEVERITY_LABELS[ticket.severity] ?? ticket.severity}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
-                          {formatDate(ticket.opened_at)}
-                        </td>
-                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
-                          {ticket.resolved_at ? formatDate(ticket.resolved_at) : "—"}
-                        </td>
-                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
-                          {ticket.closed_at ? formatDate(ticket.closed_at) : "—"}
-                        </td>
-                        <td style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
-                          {formatMoney(ticket.final_cost)}
-                        </td>
-                        <td>
-                          <span className={ticket.has_closing_evidence ? "status-badge status-badge--success" : "status-badge status-badge--muted"}>
-                            {ticket.has_closing_evidence ? "Com evidencia" : "Sem evidencia"}
-                          </span>
-                        </td>
-                        <td>
-                          {ticket.sla_due_at ? (
-                            <span
-                              style={{
-                                fontSize: "0.82rem",
-                                fontWeight: 600,
-                                color: late ? "var(--danger)" : "var(--muted)",
-                              }}
-                            >
-                              {late ? "Atrasado" : formatDate(ticket.sla_due_at)}
-                            </span>
-                          ) : (
-                            <span style={{ color: "var(--muted)", fontSize: "0.82rem" }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          <Link className="button-link" to={`/tickets/${ticket.id}`}>
-                            Detalhe
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <Link className="ui-link-button" to={`/tickets/${ticket.id}`}>
+                          Detalhe
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
 
-            <div className="pagination-bar">
-              <span style={{ fontSize: "0.9rem" }}>
-                {data.total} chamado(s) · pagina {data.page} de {Math.max(data.pages, 1)}
-              </span>
-              <div className="pagination-actions">
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.page <= 1}
-                  onClick={() => setFilters((prev) => ({ ...prev, page: Math.max(1, (prev.page || 1) - 1) }))}
-                >
-                  Anterior
-                </button>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.pages === 0 || data.page >= data.pages}
-                  onClick={() => setFilters((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))}
-                >
-                  Proxima
-                </button>
-              </div>
-            </div>
+            <Pagination
+              total={data.total}
+              label="chamado(s)"
+              page={data.page}
+              pages={data.pages}
+              onPrevious={() => setFilters((prev) => ({ ...prev, page: Math.max(1, (prev.page || 1) - 1) }))}
+              onNext={() => setFilters((prev) => ({ ...prev, page: (prev.page || 1) + 1 }))}
+            />
           </>
         ) : null}
       </section>

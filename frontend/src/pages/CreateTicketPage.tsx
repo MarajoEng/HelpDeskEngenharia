@@ -3,9 +3,18 @@ import { Link } from "react-router-dom";
 
 import { createTicket } from "../api/ticketApi";
 import { getUnitById, listUnits } from "../api/unitApi";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import ErrorState from "../components/ui/ErrorState";
+import Input from "../components/ui/Input";
+import PageHeader from "../components/ui/PageHeader";
+import Select from "../components/ui/Select";
+import Textarea from "../components/ui/Textarea";
 import { useAuth } from "../hooks/useAuth";
 import type { Ticket, TicketCategory, TicketCreatePayload, TicketPriority, TicketSeverity } from "../types/ticket";
 import type { Unit } from "../types/unit";
+import { getErrorMessage } from "../utils/messages";
 
 const categoryOptions: Array<{ value: TicketCategory; label: string }> = [
   { value: "fuel_pump", label: "Bomba de combustivel" },
@@ -125,7 +134,7 @@ export default function CreateTicketPage() {
         if (!isActive) {
           return;
         }
-        setErrorMessage(error instanceof Error ? error.message : "Nao foi possivel carregar as unidades.");
+        setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar as unidades."));
       } finally {
         if (isActive) {
           setIsLoadingUnits(false);
@@ -178,7 +187,7 @@ export default function CreateTicketPage() {
         unit_id: isManager ? current.unit_id : "",
       }));
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : "Nao foi possivel abrir o chamado.");
+      setErrorMessage(getErrorMessage(error, "Nao foi possivel abrir o chamado."));
     } finally {
       setIsSubmitting(false);
     }
@@ -187,36 +196,28 @@ export default function CreateTicketPage() {
   if (isSupplier) {
     return (
       <section className="page">
-        <div className="page__header">
-          <div>
-            <p className="eyebrow">Chamados</p>
-            <h2 className="page__title">Abertura indisponivel para este perfil</h2>
-            <p className="page__description">
-              Fornecedores nao podem abrir chamados nesta fase. A validacao definitiva permanece no backend.
-            </p>
-          </div>
-        </div>
-        <div className="state-card state-card--error">
-          Seu perfil atual nao possui permissao para criar chamados.
-        </div>
+        <PageHeader
+          eyebrow="Chamados"
+          title="Abertura indisponivel para este perfil"
+          description="Fornecedores nao podem abrir chamados nesta fase. A validacao definitiva permanece no backend."
+        />
+        <ErrorState description="Seu perfil atual nao possui permissao para criar chamados." />
       </section>
     );
   }
 
   return (
     <section className="page">
-      <div className="page__header">
-        <div>
-          <p className="eyebrow">Abertura de chamados</p>
-          <h2 className="page__title">Novo chamado critico</h2>
-          <p className="page__description">
-            Registro inicial do incidente com unidade, impacto operacional e perda estimada.
-          </p>
-        </div>
-        <Link className="button-primary button-primary--link" to="/tickets">
-          Ver chamados
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Abertura de chamados"
+        title="Novo chamado critico"
+        description="Registro inicial do incidente com unidade, impacto operacional e perda estimada."
+        actions={
+          <Link className="ui-button ui-button--primary button-primary--link" to="/tickets">
+            Ver chamados
+          </Link>
+        }
+      />
 
       {createdTicket ? (
         <section className="state-card state-card--success">
@@ -230,7 +231,7 @@ export default function CreateTicketPage() {
         </section>
       ) : null}
 
-      {errorMessage ? <section className="state-card state-card--error">{errorMessage}</section> : null}
+      {errorMessage ? <ErrorState description={errorMessage} /> : null}
 
       <section className="panel panel--stack">
         <div className="ticket-summary">
@@ -242,159 +243,139 @@ export default function CreateTicketPage() {
             </p>
           </div>
           <div className="ticket-summary__meta">
-            <span className="status-badge status-badge--info">Token obrigatorio</span>
-            {selectedUnit ? <span className="status-badge status-badge--success">{unitLabel(selectedUnit)}</span> : null}
+            <Badge tone="info">Token obrigatorio</Badge>
+            {selectedUnit ? <Badge tone="success">{unitLabel(selectedUnit)}</Badge> : null}
           </div>
         </div>
 
         <form className="form-grid" onSubmit={handleSubmit}>
           <div className="ticket-grid">
-            <label className="field">
-              <span>Unidade</span>
-              <select
-                value={form.unit_id}
-                onChange={(event) => setForm((current) => ({ ...current, unit_id: event.target.value }))}
-                disabled={isLoadingUnits || isManager}
-                required
-              >
-                <option value="">{isLoadingUnits ? "Carregando..." : "Selecione"}</option>
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unitLabel(unit)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Unidade"
+              value={form.unit_id}
+              onChange={(event) => setForm((current) => ({ ...current, unit_id: event.target.value }))}
+              disabled={isLoadingUnits || isManager}
+              required
+            >
+              <option value="">{isLoadingUnits ? "Carregando..." : "Selecione"}</option>
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unitLabel(unit)}
+                </option>
+              ))}
+            </Select>
 
-            <label className="field">
-              <span>Categoria</span>
-              <select
-                value={form.category}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, category: event.target.value as TicketCategory }))
-                }
-              >
-                {categoryOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Categoria"
+              value={form.category}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, category: event.target.value as TicketCategory }))
+              }
+            >
+              {categoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
 
-            <label className="field field--full">
-              <span>Tipo do problema</span>
-              <input
-                value={form.problem_type}
-                onChange={(event) => setForm((current) => ({ ...current, problem_type: event.target.value }))}
-                placeholder="Ex.: Falha de pressao na linha principal"
-                required
-              />
-            </label>
+            <Input
+              label="Tipo do problema"
+              containerClassName="field field--full"
+              value={form.problem_type}
+              onChange={(event) => setForm((current) => ({ ...current, problem_type: event.target.value }))}
+              placeholder="Ex.: Falha de pressao na linha principal"
+              required
+            />
 
-            <label className="field field--full">
-              <span>Titulo</span>
-              <input
-                value={form.title}
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                placeholder="Resumo objetivo do incidente"
-                required
-              />
-            </label>
+            <Input
+              label="Titulo"
+              containerClassName="field field--full"
+              value={form.title}
+              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Resumo objetivo do incidente"
+              required
+            />
 
-            <label className="field field--full">
-              <span>Descricao</span>
-              <textarea
-                className="textarea"
-                value={form.description}
-                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                placeholder="Descreva o problema, contexto operacional e risco atual."
-                rows={5}
-                required
-              />
-            </label>
+            <Textarea
+              label="Descricao"
+              containerClassName="field field--full"
+              value={form.description}
+              onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+              placeholder="Descreva o problema, contexto operacional e risco atual."
+              rows={5}
+              required
+            />
 
-            <label className="field">
-              <span>Prioridade</span>
-              <select
-                value={form.priority}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, priority: event.target.value as TicketPriority }))
-                }
-              >
-                {priorityOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Prioridade"
+              value={form.priority}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, priority: event.target.value as TicketPriority }))
+              }
+            >
+              {priorityOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
 
-            <label className="field">
-              <span>Severidade</span>
-              <select
-                value={form.severity}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, severity: event.target.value as TicketSeverity }))
-                }
-              >
-                {severityOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Severidade"
+              value={form.severity}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, severity: event.target.value as TicketSeverity }))
+              }
+            >
+              {severityOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
 
-            <label className="field field--full">
-              <span>Impacto operacional</span>
-              <textarea
-                className="textarea"
-                value={form.operational_impact}
-                onChange={(event) => setForm((current) => ({ ...current, operational_impact: event.target.value }))}
-                placeholder="Ex.: Pista 2 parada, fila crescente, risco de perda de venda."
-                rows={3}
-              />
-            </label>
+            <Textarea
+              label="Impacto operacional"
+              containerClassName="field field--full"
+              value={form.operational_impact}
+              onChange={(event) => setForm((current) => ({ ...current, operational_impact: event.target.value }))}
+              placeholder="Ex.: Pista 2 parada, fila crescente, risco de perda de venda."
+              rows={3}
+            />
 
-            <label className="field">
-              <span>Bicos parados</span>
-              <input
-                type="number"
-                min="0"
-                value={form.fuel_nozzles_stopped}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, fuel_nozzles_stopped: event.target.value }))
-                }
-                placeholder="0"
-              />
-            </label>
+            <Input
+              label="Bicos parados"
+              type="number"
+              min="0"
+              value={form.fuel_nozzles_stopped}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, fuel_nozzles_stopped: event.target.value }))
+              }
+              placeholder="0"
+            />
 
-            <label className="field">
-              <span>Perda estimada diaria</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.estimated_daily_loss}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, estimated_daily_loss: event.target.value }))
-                }
-                placeholder="1500.00"
-              />
-            </label>
+            <Input
+              label="Perda estimada diaria"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.estimated_daily_loss}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, estimated_daily_loss: event.target.value }))
+              }
+              placeholder="1500.00"
+            />
 
-            <label className="field">
-              <span>Custo estimado</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.estimated_cost}
-                onChange={(event) => setForm((current) => ({ ...current, estimated_cost: event.target.value }))}
-                placeholder="8000.00"
-              />
-            </label>
+            <Input
+              label="Custo estimado"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.estimated_cost}
+              onChange={(event) => setForm((current) => ({ ...current, estimated_cost: event.target.value }))}
+              placeholder="8000.00"
+            />
 
             <label className="field field--checkbox">
               <input
@@ -409,9 +390,9 @@ export default function CreateTicketPage() {
           </div>
 
           <div className="form-actions">
-            <button className="button-primary" type="submit" disabled={isSubmitting || isLoadingUnits || !form.unit_id}>
+            <Button variant="primary" type="submit" disabled={isSubmitting || isLoadingUnits || !form.unit_id}>
               {isSubmitting ? "Criando chamado..." : "Criar chamado"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>

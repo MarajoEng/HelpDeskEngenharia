@@ -1,12 +1,27 @@
-import type { PropsWithChildren } from "react";
+import { useMemo, useState, type PropsWithChildren } from "react";
 import { NavLink } from "react-router-dom";
 
+import Badge from "../ui/Badge";
+import Button from "../ui/Button";
 import { useAuth } from "../../hooks/useAuth";
+import { ROLE_LABELS } from "../tickets/ticketUi";
+
+interface NavItem {
+  label: string;
+  to: string;
+  enabled: boolean;
+}
 
 export default function AppLayout({ children }: PropsWithChildren) {
   const { logout, user } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const canAccessDashboard = user?.role !== "supplier";
   const canAccessTickets = user?.role !== "supplier";
+  const canAccessReports =
+    user?.role === "admin" ||
+    user?.role === "director" ||
+    user?.role === "engineering" ||
+    user?.role === "manager";
   const canAccessEngineering = user?.role === "admin" || user?.role === "engineering";
   const canAccessApprovalLevels = user?.role === "admin";
   const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
@@ -15,125 +30,104 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const canAccessAuditLogs = user?.role === "admin";
   const canAccessUsers = user?.role === "admin";
 
+  const operationLinks = useMemo<NavItem[]>(
+    () => [
+      { label: "Dashboard", to: "/dashboard", enabled: canAccessDashboard },
+      { label: "Chamados", to: "/tickets", enabled: canAccessTickets },
+      { label: "Abrir chamado", to: "/tickets/new", enabled: canAccessTickets },
+      { label: "Engenharia", to: "/engineering", enabled: canAccessEngineering },
+      { label: "Alertas", to: "/alerts", enabled: canAccessAlerts },
+    ],
+    [canAccessAlerts, canAccessDashboard, canAccessEngineering, canAccessTickets],
+  );
+
+  const analyticsLinks = useMemo<NavItem[]>(
+    () => [{ label: "Relatorios", to: "/reports", enabled: canAccessReports }],
+    [canAccessReports],
+  );
+
+  const adminLinks = useMemo<NavItem[]>(
+    () => [
+      { label: "Unidades", to: "/units", enabled: canAccessUnits },
+      { label: "Usuarios", to: "/users", enabled: canAccessUsers },
+      { label: "Fornecedores", to: "/suppliers", enabled: canAccessSuppliers },
+      { label: "Alcadas", to: "/approval-levels", enabled: canAccessApprovalLevels },
+      { label: "Auditoria", to: "/audit-logs", enabled: canAccessAuditLogs },
+    ],
+    [canAccessApprovalLevels, canAccessAuditLogs, canAccessSuppliers, canAccessUnits, canAccessUsers],
+  );
+
+  const visibleOperationLinks = operationLinks.filter((item) => item.enabled);
+  const visibleAnalyticsLinks = analyticsLinks.filter((item) => item.enabled);
+  const visibleAdminLinks = adminLinks.filter((item) => item.enabled);
+  const userInitials = user?.name
+    ? user.name
+        .split(" ")
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? "")
+        .join("")
+    : "US";
+
+  function renderLink(item: NavItem) {
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        className={({ isActive }) => (isActive ? "nav-link nav-link--active" : "nav-link")}
+        onClick={() => setIsSidebarOpen(false)}
+      >
+        <span>{item.label}</span>
+      </NavLink>
+    );
+  }
+
   return (
     <div className="shell">
-      <aside className="shell__sidebar">
-        <div>
+      <aside className={`shell__sidebar${!isSidebarOpen ? " is-mobile-hidden" : ""}`}>
+        <div className="shell__brand-block">
           <p className="eyebrow">Operacao central</p>
           <h1 className="shell__brand">Portal de Chamados</h1>
           <p className="shell__sidebar-copy">
-            Base autenticada para engenharia e manutencao estrutural.
+            Operacao tecnica, engenharia e controle administrativo em um fluxo unico.
           </p>
         </div>
 
         <nav className="shell__nav" aria-label="Navegacao principal">
-          {canAccessDashboard ? (
-            <NavLink
-              to="/dashboard"
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link--active" : "nav-link"
-              }
-            >
-              Dashboard
-            </NavLink>
+          {visibleOperationLinks.length > 0 ? (
+            <div className="shell__sidebar-group">
+              <p className="shell__sidebar-group-title">Operacao</p>
+              {visibleOperationLinks.map(renderLink)}
+            </div>
           ) : null}
-          {canAccessTickets ? (
-            <>
-              <NavLink
-                to="/tickets"
-                className={({ isActive }) =>
-                  isActive ? "nav-link nav-link--active" : "nav-link"
-                }
-              >
-                Chamados
-              </NavLink>
-              {canAccessEngineering ? (
-                <NavLink
-                  to="/engineering"
-                  className={({ isActive }) =>
-                    isActive ? "nav-link nav-link--active" : "nav-link"
-                  }
-                >
-                  Engenharia
-                </NavLink>
-              ) : null}
-              {canAccessApprovalLevels ? (
-                <NavLink
-                  to="/approval-levels"
-                  className={({ isActive }) =>
-                    isActive ? "nav-link nav-link--active" : "nav-link"
-                  }
-                >
-                  Alcadas
-                </NavLink>
-              ) : null}
-              <NavLink
-                to="/tickets/new"
-                className={({ isActive }) =>
-                  isActive ? "nav-link nav-link--active" : "nav-link"
-                }
-              >
-                Abrir chamado
-              </NavLink>
-            </>
+          {visibleAnalyticsLinks.length > 0 ? (
+            <div className="shell__sidebar-group">
+              <p className="shell__sidebar-group-title">Analise</p>
+              {visibleAnalyticsLinks.map(renderLink)}
+            </div>
           ) : null}
-          {canAccessAlerts ? (
-            <NavLink
-              to="/alerts"
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link--active" : "nav-link"
-              }
-            >
-              Alertas
-            </NavLink>
-          ) : null}
-          {canAccessSuppliers ? (
-            <NavLink
-              to="/suppliers"
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link--active" : "nav-link"
-              }
-            >
-              Fornecedores
-            </NavLink>
-          ) : null}
-          {canAccessUnits ? (
-            <NavLink
-              to="/units"
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link--active" : "nav-link"
-              }
-            >
-              Unidades
-            </NavLink>
-          ) : null}
-          {canAccessUsers ? (
-            <NavLink
-              to="/users"
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link--active" : "nav-link"
-              }
-            >
-              Usuarios
-            </NavLink>
-          ) : null}
-          {canAccessAuditLogs ? (
-            <NavLink
-              to="/audit-logs"
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link--active" : "nav-link"
-              }
-            >
-              Auditoria
-            </NavLink>
+          {visibleAdminLinks.length > 0 ? (
+            <div className="shell__sidebar-group">
+              <p className="shell__sidebar-group-title">Administracao</p>
+              {visibleAdminLinks.map(renderLink)}
+            </div>
           ) : null}
         </nav>
 
-        <div className="shell__sidebar-card">
-          <span className="status-badge status-badge--info">Fase 13</span>
-          <p>
-            Auditoria completa, seguranca de headers, rate limiting e protecao de uploads.
-          </p>
+        <div className="shell__sidebar-footer">
+          <div className="shell__quick-user">
+            <div className="shell__avatar" aria-hidden="true">
+              {userInitials}
+            </div>
+            <div>
+              <strong>{user?.name || "Usuario"}</strong>
+              <p className="shell__meta">{ROLE_LABELS[user?.role ?? "manager"]}</p>
+            </div>
+          </div>
+
+          <div className="shell__sidebar-card">
+            <Badge tone="info">Fase 15</Badge>
+            <p>Relatorios protegidos, filtros reais no banco e exportacao CSV dentro do escopo autorizado.</p>
+          </div>
         </div>
       </aside>
 
@@ -143,15 +137,23 @@ export default function AppLayout({ children }: PropsWithChildren) {
             <p className="eyebrow">Sessao autenticada</p>
             <strong>{user?.name || "Usuario"}</strong>
             <p className="shell__meta">
-              {user?.email} · perfil {user?.role}
+              {user?.email} · perfil {ROLE_LABELS[user?.role ?? "manager"]}
             </p>
           </div>
 
           <div className="shell__header-actions">
-            <span className="status-badge status-badge--success">Ativo</span>
-            <button className="button-secondary" type="button" onClick={logout}>
+            <Button
+              className="shell__mobile-toggle"
+              variant="ghost"
+              aria-label={isSidebarOpen ? "Fechar menu lateral" : "Abrir menu lateral"}
+              onClick={() => setIsSidebarOpen((current) => !current)}
+            >
+              {isSidebarOpen ? "Fechar menu" : "Menu"}
+            </Button>
+            <Badge tone="success">Ativo</Badge>
+            <Button variant="secondary" type="button" onClick={logout}>
               Sair
-            </button>
+            </Button>
           </div>
         </header>
 

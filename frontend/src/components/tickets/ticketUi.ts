@@ -2,108 +2,48 @@ import type { UserRole } from "../../types/auth";
 import type {
   Ticket,
   TicketDetail,
-  TicketPriority,
-  TicketSeverity,
   TicketStatus,
 } from "../../types/ticket";
+import {
+  APPROVAL_STATUS_LABELS,
+  PRIORITY_LABELS,
+  ROLE_LABELS,
+  SEVERITY_LABELS,
+  STATUS_LABELS,
+  approvalStatusTone,
+  priorityTone,
+  severityTone,
+  ticketStatusTone,
+} from "../ui/statusOptions";
+import { formatDate, formatDateTimeLocalInput, formatMoney } from "../../utils/formatters";
 
-export const STATUS_LABELS: Record<TicketStatus, string> = {
-  open: "Aberto",
-  triage: "Triagem",
-  waiting_approval: "Ag. aprovacao",
-  approved: "Aprovado",
-  rejected: "Rejeitado",
-  in_progress: "Em execucao",
-  waiting_supplier: "Ag. fornecedor",
-  waiting_unit: "Ag. unidade",
-  resolved: "Resolvido",
-  closed: "Encerrado",
-  canceled: "Cancelado",
+export {
+  APPROVAL_STATUS_LABELS,
+  PRIORITY_LABELS,
+  ROLE_LABELS,
+  SEVERITY_LABELS,
+  STATUS_LABELS,
+  formatDate,
+  formatDateTimeLocalInput,
+  formatMoney,
 };
-
-export const PRIORITY_LABELS: Record<TicketPriority, string> = {
-  low: "Baixa",
-  medium: "Media",
-  high: "Alta",
-  critical: "Critica",
-};
-
-export const SEVERITY_LABELS: Record<TicketSeverity, string> = {
-  low: "Baixa",
-  medium: "Media",
-  high: "Alta",
-  critical: "Critica",
-};
-
-export const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "Admin",
-  manager: "Manager",
-  engineering: "Engineering",
-  director: "Director",
-  supplier: "Supplier",
-};
-
-export const APPROVAL_STATUS_LABELS = {
-  pending: "Pendente",
-  approved: "Aprovado",
-  rejected: "Rejeitado",
-  canceled: "Cancelado",
-} as const;
 
 export const TRIAGE_ALLOWED_STATUSES: TicketStatus[] = ["open", "triage", "waiting_unit"];
 
-export function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-export function formatMoney(value: string | null | undefined) {
-  if (!value) return "Nao informado";
-  const parsed = Number(value);
-  return Number.isNaN(parsed)
-    ? value
-    : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(parsed);
-}
-
-export function formatDateTimeLocalInput(value: string | null | undefined) {
-  if (!value) return "";
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  const timezoneOffset = parsed.getTimezoneOffset() * 60_000;
-  return new Date(parsed.getTime() - timezoneOffset).toISOString().slice(0, 16);
-}
-
 export function statusClass(status: TicketStatus) {
-  if (status === "open") return "status-badge status-badge--info";
-  if (status === "resolved" || status === "closed" || status === "approved") {
-    return "status-badge status-badge--success";
-  }
-  if (status === "rejected" || status === "canceled") return "status-badge status-badge--danger";
-  return "status-badge status-badge--muted";
+  return `ui-badge ui-badge--${ticketStatusTone(status)}`;
 }
 
 export function approvalStatusClass(status: keyof typeof APPROVAL_STATUS_LABELS) {
-  if (status === "approved") return "status-badge status-badge--success";
-  if (status === "rejected" || status === "canceled") return "status-badge status-badge--danger";
-  return "status-badge status-badge--muted";
+  return `ui-badge ui-badge--${approvalStatusTone(status)}`;
 }
 
-export function priorityClass(priority: TicketPriority) {
-  return `priority-badge priority-badge--${priority}`;
+export function priorityClass(priority: keyof typeof PRIORITY_LABELS) {
+  return `ui-badge ui-badge--${priorityTone(priority)}`;
 }
 
-export function severityClass(severity: TicketSeverity) {
-  return `severity-badge severity-badge--${severity}`;
+export function severityClass(severity: keyof typeof SEVERITY_LABELS) {
+  return `ui-badge ui-badge--${severityTone(severity)}`;
 }
 
 export function isSlaLate(ticket: Pick<Ticket | TicketDetail, "sla_due_at" | "status">) {

@@ -1,3 +1,5 @@
+import { getApiErrorMessage } from "../utils/messages";
+
 const defaultApiBaseUrl = "http://127.0.0.1:8000";
 
 export const apiBaseUrl =
@@ -7,7 +9,7 @@ export class ApiError extends Error {
   status: number;
 
   constructor(status: number, detail: string) {
-    super(detail);
+    super(getApiErrorMessage(status, detail));
     this.name = "ApiError";
     this.status = status;
   }

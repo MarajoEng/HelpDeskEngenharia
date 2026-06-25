@@ -1,8 +1,21 @@
 import { useEffect, useState } from "react";
 
 import { createUnit, listUnits, updateUnit } from "../api/unitApi";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/ui/ErrorState";
+import FilterBar from "../components/ui/FilterBar";
+import Input from "../components/ui/Input";
+import LoadingState from "../components/ui/LoadingState";
+import Modal from "../components/ui/Modal";
+import PageHeader from "../components/ui/PageHeader";
+import Pagination from "../components/ui/Pagination";
+import Select from "../components/ui/Select";
+import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
 import type { Unit, UnitFilters, UnitPayload } from "../types/unit";
+import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
 
 const initialFilters: UnitFilters = {
   page: 1,
@@ -53,7 +66,7 @@ export default function UnitsPage() {
       const response = await listUnits(token, filters);
       setData(response);
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : "Nao foi possivel carregar unidades.");
+      setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar unidades."));
     } finally {
       setIsLoading(false);
     }
@@ -108,7 +121,7 @@ export default function UnitsPage() {
       closeModal();
       await loadUnits();
     } catch (error: unknown) {
-      setFormError(error instanceof Error ? error.message : "Nao foi possivel salvar a unidade.");
+      setFormError(getErrorMessage(error, "Nao foi possivel salvar a unidade."));
     } finally {
       setIsSubmitting(false);
     }
@@ -118,230 +131,184 @@ export default function UnitsPage() {
 
   return (
     <section className="page">
-      <div className="page__header">
-        <div>
-          <p className="eyebrow">Cadastro base</p>
-          <h2 className="page__title">Unidades</h2>
-          <p className="page__description">
-            Cadastro administrativo com filtros, paginacao e controle de ativacao.
-          </p>
-        </div>
-        {canManage ? (
-          <button className="button-primary" type="button" onClick={openCreateModal}>
-            Nova unidade
-          </button>
-        ) : null}
-      </div>
+      <PageHeader
+        eyebrow="Cadastro base"
+        title="Unidades"
+        description="Cadastro administrativo com filtros, controle de ativacao e edicao segura."
+        actions={
+          canManage ? (
+            <Button variant="primary" type="button" onClick={openCreateModal}>
+              Nova unidade
+            </Button>
+          ) : null
+        }
+      />
 
       <section className="panel">
-        <div className="filters">
-          <label className="field">
-            <span>Busca</span>
-            <input
-              value={filters.search || ""}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, search: event.target.value }))
-              }
-              placeholder="Code, nome, cidade ou regiao"
-            />
-          </label>
+        <FilterBar columns={4}>
+          <Input
+            label="Busca"
+            value={filters.search || ""}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, page: 1, search: event.target.value }))
+            }
+            placeholder="Code, nome, cidade ou regiao"
+          />
 
-          <label className="field">
-            <span>UF</span>
-            <input
-              value={filters.state || ""}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, state: event.target.value.toUpperCase() }))
-              }
-              placeholder="SP"
-              maxLength={2}
-            />
-          </label>
+          <Input
+            label="UF"
+            value={filters.state || ""}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, page: 1, state: event.target.value.toUpperCase() }))
+            }
+            placeholder="SP"
+            maxLength={2}
+          />
 
-          <label className="field">
-            <span>Regiao</span>
-            <input
-              value={filters.region || ""}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, region: event.target.value }))
-              }
-              placeholder="Sudeste"
-            />
-          </label>
+          <Input
+            label="Regiao"
+            value={filters.region || ""}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, page: 1, region: event.target.value }))
+            }
+            placeholder="Sudeste"
+          />
 
-          <label className="field">
-            <span>Status</span>
-            <select
-              value={String(filters.is_active ?? "")}
-              onChange={(event) => {
-                const value = event.target.value;
-                setFilters((current) => ({
-                  ...current,
-                  page: 1,
-                  is_active: value === "" ? "" : value === "true",
-                }));
-              }}
-            >
-              <option value="">Todos</option>
-              <option value="true">Ativas</option>
-              <option value="false">Inativas</option>
-            </select>
-          </label>
-        </div>
+          <Select
+            label="Status"
+            value={String(filters.is_active ?? "")}
+            onChange={(event) => {
+              const value = event.target.value;
+              setFilters((current) => ({
+                ...current,
+                page: 1,
+                is_active: value === "" ? "" : value === "true",
+              }));
+            }}
+          >
+            <option value="">Todos</option>
+            <option value="true">Ativas</option>
+            <option value="false">Inativas</option>
+          </Select>
+        </FilterBar>
 
-        {isLoading ? <div className="state-card">Carregando unidades...</div> : null}
-        {!isLoading && errorMessage ? <div className="state-card state-card--error">{errorMessage}</div> : null}
+        {isLoading ? <LoadingState title="Carregando unidades" /> : null}
+        {!isLoading && errorMessage ? <ErrorState description={errorMessage} /> : null}
         {!isLoading && !errorMessage && data.items.length === 0 ? (
-          <div className="state-card">Nenhuma unidade encontrada para os filtros atuais.</div>
+          <EmptyState title="Nenhuma unidade encontrada" description={LIST_EMPTY_MESSAGES.units} />
         ) : null}
 
         {!isLoading && !errorMessage && data.items.length > 0 ? (
           <>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Code</th>
-                    <th>Nome</th>
-                    <th>Cidade</th>
-                    <th>UF</th>
-                    <th>Regiao</th>
-                    <th>Status</th>
-                    <th>Acoes</th>
+            <Table minWidth={860}>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Nome</th>
+                  <th>Cidade</th>
+                  <th>UF</th>
+                  <th>Regiao</th>
+                  <th>Status</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((unit) => (
+                  <tr key={unit.id}>
+                    <td>{unit.code}</td>
+                    <td>{unit.name}</td>
+                    <td>{unit.city}</td>
+                    <td>{unit.state}</td>
+                    <td>{unit.region}</td>
+                    <td>
+                      <Badge tone={unit.is_active ? "success" : "neutral"}>
+                        {unit.is_active ? "Ativa" : "Inativa"}
+                      </Badge>
+                    </td>
+                    <td>
+                      {canManage ? (
+                        <button className="ui-link-button" type="button" onClick={() => openEditModal(unit)}>
+                          Editar
+                        </button>
+                      ) : (
+                        <span className="text-muted">Somente leitura</span>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((unit) => (
-                    <tr key={unit.id}>
-                      <td>{unit.code}</td>
-                      <td>{unit.name}</td>
-                      <td>{unit.city}</td>
-                      <td>{unit.state}</td>
-                      <td>{unit.region}</td>
-                      <td>
-                        <span className={unit.is_active ? "status-badge status-badge--success" : "status-badge status-badge--muted"}>
-                          {unit.is_active ? "Ativa" : "Inativa"}
-                        </span>
-                      </td>
-                      <td>
-                        {canManage ? (
-                          <button className="button-link" type="button" onClick={() => openEditModal(unit)}>
-                            Editar
-                          </button>
-                        ) : (
-                          <span className="text-muted">Somente leitura</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </Table>
 
-            <div className="pagination-bar">
-              <span>
-                {data.total} registro(s) · pagina {data.page} de {Math.max(data.pages, 1)}
-              </span>
-              <div className="pagination-actions">
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.page <= 1}
-                  onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, (current.page || 1) - 1) }))}
-                >
-                  Anterior
-                </button>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.pages === 0 || data.page >= data.pages}
-                  onClick={() => setFilters((current) => ({ ...current, page: (current.page || 1) + 1 }))}
-                >
-                  Proxima
-                </button>
-              </div>
-            </div>
+            <Pagination
+              total={data.total}
+              page={data.page}
+              pages={data.pages}
+              onPrevious={() => setFilters((current) => ({ ...current, page: Math.max(1, (current.page || 1) - 1) }))}
+              onNext={() => setFilters((current) => ({ ...current, page: (current.page || 1) + 1 }))}
+            />
           </>
         ) : null}
       </section>
 
       {isModalOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={closeModal}>
-          <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-card__header">
-              <div>
-                <p className="eyebrow">Unidades</p>
-                <h3>{editingUnit ? "Editar unidade" : "Nova unidade"}</h3>
-              </div>
-              <button className="button-secondary" type="button" onClick={closeModal}>
-                Fechar
-              </button>
+        <Modal
+          title={editingUnit ? "Editar unidade" : "Nova unidade"}
+          subtitle="Cadastro administrativo de unidade operacional."
+          onClose={closeModal}
+        >
+          <form className="form-grid" onSubmit={handleSubmit}>
+            <Input
+              label="Code"
+              value={form.code}
+              onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
+              required
+            />
+            <Input
+              label="Nome"
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              required
+            />
+            <Input
+              label="Cidade"
+              value={form.city}
+              onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
+              required
+            />
+            <Input
+              label="UF"
+              value={form.state}
+              maxLength={2}
+              onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase() }))}
+              required
+            />
+            <Input
+              label="Regiao"
+              value={form.region}
+              onChange={(event) => setForm((current) => ({ ...current, region: event.target.value }))}
+              required
+            />
+            <label className="field field--checkbox">
+              <input
+                checked={form.is_active}
+                type="checkbox"
+                onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
+              />
+              <span>Unidade ativa</span>
+            </label>
+
+            {formError ? <div className="form-message form-message--error">{formError}</div> : null}
+
+            <div className="form-actions">
+              <Button variant="secondary" type="button" onClick={closeModal}>
+                Cancelar
+              </Button>
+              <Button variant="primary" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Salvando..." : editingUnit ? "Salvar alteracoes" : "Criar unidade"}
+              </Button>
             </div>
-
-            <form className="form-grid" onSubmit={handleSubmit}>
-              <label className="field">
-                <span>Code</span>
-                <input
-                  value={form.code}
-                  onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Nome</span>
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Cidade</span>
-                <input
-                  value={form.city}
-                  onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>UF</span>
-                <input
-                  value={form.state}
-                  maxLength={2}
-                  onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase() }))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Regiao</span>
-                <input
-                  value={form.region}
-                  onChange={(event) => setForm((current) => ({ ...current, region: event.target.value }))}
-                  required
-                />
-              </label>
-              <label className="field field--checkbox">
-                <input
-                  checked={form.is_active}
-                  type="checkbox"
-                  onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
-                />
-                <span>Unidade ativa</span>
-              </label>
-
-              {formError ? <div className="form-message form-message--error">{formError}</div> : null}
-
-              <div className="form-actions">
-                <button className="button-secondary" type="button" onClick={closeModal}>
-                  Cancelar
-                </button>
-                <button className="button-primary" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Salvando..." : editingUnit ? "Salvar alteracoes" : "Criar unidade"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          </form>
+        </Modal>
       ) : null}
     </section>
   );

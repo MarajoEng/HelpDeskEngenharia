@@ -1,10 +1,23 @@
 import { type FormEvent, useEffect, useState } from "react";
 
 import { createApprovalLevel, listApprovalLevels, updateApprovalLevel } from "../api/approvalLevelApi";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/ui/ErrorState";
+import FilterBar from "../components/ui/FilterBar";
+import Input from "../components/ui/Input";
+import LoadingState from "../components/ui/LoadingState";
+import Modal from "../components/ui/Modal";
+import PageHeader from "../components/ui/PageHeader";
+import Pagination from "../components/ui/Pagination";
+import Select from "../components/ui/Select";
+import { ROLE_LABELS } from "../components/ui/statusOptions";
+import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
-import type { UserRole } from "../types/auth";
 import type { ApprovalLevel, ApprovalLevelFilters, ApprovalLevelPayload } from "../types/approvalLevel";
-import { ROLE_LABELS } from "../components/tickets/ticketUi";
+import type { UserRole } from "../types/auth";
+import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
 
 const initialFilters: ApprovalLevelFilters = {
   page: 1,
@@ -57,7 +70,7 @@ export default function ApprovalLevelsPage() {
       const response = await listApprovalLevels(token, filters);
       setData(response);
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : "Nao foi possivel carregar as alcadas.");
+      setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar as alcadas."));
     } finally {
       setIsLoading(false);
     }
@@ -138,7 +151,7 @@ export default function ApprovalLevelsPage() {
       closeModal();
       await loadApprovalLevels();
     } catch (error: unknown) {
-      setFormError(error instanceof Error ? error.message : "Nao foi possivel salvar a alcada.");
+      setFormError(getErrorMessage(error, "Nao foi possivel salvar a alcada."));
     } finally {
       setIsSubmitting(false);
     }
@@ -147,226 +160,189 @@ export default function ApprovalLevelsPage() {
   if (!isAdmin) {
     return (
       <section className="page">
-        <div className="page__header">
-          <div>
-            <p className="eyebrow">Administracao</p>
-            <h2 className="page__title">Acesso indisponivel</h2>
-            <p className="page__description">A configuracao de alcadas fica disponivel apenas para admin.</p>
-          </div>
-        </div>
-        <div className="state-card state-card--error">Seu perfil nao pode acessar as alcadas.</div>
+        <PageHeader
+          eyebrow="Administracao"
+          title="Acesso indisponivel"
+          description="A configuracao de alcadas fica disponivel apenas para admin."
+        />
+        <ErrorState description="Seu perfil nao pode acessar as alcadas." />
       </section>
     );
   }
 
   return (
     <section className="page">
-      <div className="page__header">
-        <div>
-          <p className="eyebrow">Administracao</p>
-          <h2 className="page__title">Alcadas</h2>
-          <p className="page__description">
-            Configuracao paginada das faixas de aprovacao por valor e perfis autorizados.
-          </p>
-        </div>
-        <button className="button-primary" type="button" onClick={openCreateModal}>
-          Nova alcada
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Administracao"
+        title="Alcadas"
+        description="Faixas de aprovacao por valor com perfis autorizados e controle de status."
+        actions={
+          <Button variant="primary" type="button" onClick={openCreateModal}>
+            Nova alcada
+          </Button>
+        }
+      />
 
       <section className="panel">
-        <div className="filters">
-          <label className="field">
-            <span>Busca</span>
-            <input
-              value={filters.search || ""}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, search: event.target.value }))}
-              placeholder="Nome da alcada"
-            />
-          </label>
-          <label className="field">
-            <span>Status</span>
-            <select
-              value={String(filters.is_active ?? "")}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  page: 1,
-                  is_active: event.target.value === "" ? "" : event.target.value === "true",
-                }))
-              }
-            >
-              <option value="">Todos</option>
-              <option value="true">Ativas</option>
-              <option value="false">Inativas</option>
-            </select>
-          </label>
-        </div>
+        <FilterBar columns={2}>
+          <Input
+            label="Busca"
+            value={filters.search || ""}
+            onChange={(event) => setFilters((current) => ({ ...current, page: 1, search: event.target.value }))}
+            placeholder="Nome da alcada"
+          />
+          <Select
+            label="Status"
+            value={String(filters.is_active ?? "")}
+            onChange={(event) =>
+              setFilters((current) => ({
+                ...current,
+                page: 1,
+                is_active: event.target.value === "" ? "" : event.target.value === "true",
+              }))
+            }
+          >
+            <option value="">Todos</option>
+            <option value="true">Ativas</option>
+            <option value="false">Inativas</option>
+          </Select>
+        </FilterBar>
 
-        {isLoading ? <div className="state-card">Carregando alcadas...</div> : null}
-        {!isLoading && errorMessage ? <div className="state-card state-card--error">{errorMessage}</div> : null}
+        {isLoading ? <LoadingState title="Carregando alcadas" /> : null}
+        {!isLoading && errorMessage ? <ErrorState description={errorMessage} /> : null}
         {!isLoading && !errorMessage && data.items.length === 0 ? (
-          <div className="state-card">Nenhuma alcada encontrada para os filtros informados.</div>
+          <EmptyState title="Nenhuma alcada encontrada" description={LIST_EMPTY_MESSAGES.approvals} />
         ) : null}
 
         {!isLoading && !errorMessage && data.items.length > 0 ? (
           <>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>Faixa</th>
-                    <th>Perfis</th>
-                    <th>Status</th>
-                    <th></th>
+            <Table minWidth={860}>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Faixa</th>
+                  <th>Perfis</th>
+                  <th>Status</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((level) => (
+                  <tr key={level.id}>
+                    <td>{level.name}</td>
+                    <td>
+                      {level.max_amount
+                        ? `R$ ${level.min_amount} ate R$ ${level.max_amount}`
+                        : `A partir de R$ ${level.min_amount}`}
+                    </td>
+                    <td>{level.allowed_roles.map((role) => ROLE_LABELS[role]).join(", ")}</td>
+                    <td>
+                      <Badge tone={level.is_active ? "success" : "neutral"}>
+                        {level.is_active ? "Ativa" : "Inativa"}
+                      </Badge>
+                    </td>
+                    <td>
+                      <button className="ui-link-button" type="button" onClick={() => openEditModal(level)}>
+                        Editar
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((level) => (
-                    <tr key={level.id}>
-                      <td>{level.name}</td>
-                      <td>
-                        {level.max_amount
-                          ? `R$ ${level.min_amount} ate R$ ${level.max_amount}`
-                          : `A partir de R$ ${level.min_amount}`}
-                      </td>
-                      <td>{level.allowed_roles.map((role) => ROLE_LABELS[role]).join(", ")}</td>
-                      <td>
-                        <span className={level.is_active ? "status-badge status-badge--success" : "status-badge status-badge--muted"}>
-                          {level.is_active ? "Ativa" : "Inativa"}
-                        </span>
-                      </td>
-                      <td>
-                        <button className="button-link" type="button" onClick={() => openEditModal(level)}>
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </Table>
 
-            <div className="pagination-bar">
-              <span style={{ fontSize: "0.9rem" }}>
-                {data.total} alcada(s) · pagina {data.page} de {Math.max(data.pages, 1)}
-              </span>
-              <div className="pagination-actions">
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.page <= 1}
-                  onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, (current.page || 1) - 1) }))}
-                >
-                  Anterior
-                </button>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.pages === 0 || data.page >= data.pages}
-                  onClick={() => setFilters((current) => ({ ...current, page: (current.page || 1) + 1 }))}
-                >
-                  Proxima
-                </button>
-              </div>
-            </div>
+            <Pagination
+              total={data.total}
+              label="alcada(s)"
+              page={data.page}
+              pages={data.pages}
+              onPrevious={() => setFilters((current) => ({ ...current, page: Math.max(1, (current.page || 1) - 1) }))}
+              onNext={() => setFilters((current) => ({ ...current, page: (current.page || 1) + 1 }))}
+            />
           </>
         ) : null}
       </section>
 
       {isModalOpen ? (
-        <div className="modal-backdrop" role="presentation">
-          <div className="modal-card">
-            <div className="modal-card__header">
-              <div>
-                <p className="eyebrow">Configuracao de alcada</p>
-                <h3>{editingLevel ? "Editar alcada" : "Nova alcada"}</h3>
-              </div>
-              <button className="button-secondary" type="button" onClick={closeModal}>
-                Fechar
-              </button>
+        <Modal
+          title={editingLevel ? "Editar alcada" : "Nova alcada"}
+          subtitle="Configuracao de limites financeiros e perfis aprovadores."
+          onClose={closeModal}
+        >
+          <form className="form-grid" onSubmit={handleSubmit}>
+            <Input
+              label="Nome"
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              disabled={isSubmitting}
+              required
+            />
+
+            <div className="ticket-triage-grid">
+              <Input
+                label="Valor minimo"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.min_amount}
+                onChange={(event) => setForm((current) => ({ ...current, min_amount: event.target.value }))}
+                disabled={isSubmitting}
+                required
+              />
+
+              <Input
+                label="Valor maximo"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.max_amount ?? ""}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, max_amount: event.target.value || null }))
+                }
+                placeholder="Deixe vazio para topo aberto"
+                disabled={isSubmitting}
+              />
             </div>
 
-            <form className="form-grid" onSubmit={handleSubmit}>
-              <label className="field">
-                <span>Nome *</span>
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                  disabled={isSubmitting}
-                />
-              </label>
-
-              <div className="ticket-triage-grid">
-                <label className="field">
-                  <span>Valor minimo *</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.min_amount}
-                    onChange={(event) => setForm((current) => ({ ...current, min_amount: event.target.value }))}
-                    disabled={isSubmitting}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Valor maximo</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.max_amount ?? ""}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, max_amount: event.target.value || null }))
-                    }
-                    placeholder="Deixe vazio para topo aberto"
-                    disabled={isSubmitting}
-                  />
-                </label>
+            <div className="field field--full">
+              <span>Perfis permitidos *</span>
+              <div className="checkbox-grid">
+                {roleOptions.map((role) => (
+                  <label className="field field--checkbox" key={role}>
+                    <input
+                      type="checkbox"
+                      checked={form.allowed_roles.includes(role)}
+                      onChange={() => toggleRole(role)}
+                      disabled={isSubmitting}
+                    />
+                    <span>{ROLE_LABELS[role]}</span>
+                  </label>
+                ))}
               </div>
+            </div>
 
-              <div className="field field--full">
-                <span>Perfis permitidos *</span>
-                <div className="checkbox-grid">
-                  {roleOptions.map((role) => (
-                    <label className="field field--checkbox" key={role}>
-                      <input
-                        type="checkbox"
-                        checked={form.allowed_roles.includes(role)}
-                        onChange={() => toggleRole(role)}
-                        disabled={isSubmitting}
-                      />
-                      <span>{ROLE_LABELS[role]}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <label className="field field--checkbox">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
+                disabled={isSubmitting}
+              />
+              <span>Alcada ativa</span>
+            </label>
 
-              <label className="field field--checkbox">
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
-                  disabled={isSubmitting}
-                />
-                <span>Alcada ativa</span>
-              </label>
+            {formError ? <div className="form-message form-message--error">{formError}</div> : null}
 
-              {formError ? <div className="form-message form-message--error">{formError}</div> : null}
-
-              <div className="form-actions">
-                <button className="button-secondary" type="button" onClick={closeModal} disabled={isSubmitting}>
-                  Cancelar
-                </button>
-                <button className="button-primary" type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Salvando..." : "Salvar alcada"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            <div className="form-actions">
+              <Button variant="secondary" type="button" onClick={closeModal} disabled={isSubmitting}>
+                Cancelar
+              </Button>
+              <Button variant="primary" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Salvando..." : "Salvar alcada"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       ) : null}
     </section>
   );

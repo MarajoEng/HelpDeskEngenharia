@@ -36,6 +36,19 @@ from app.schemas.dashboard import (
     UnitTicketsRankingItem,
 )
 from app.schemas.pagination import PaginatedResponse
+from app.schemas.report import (
+    CostReportItem,
+    CostReportResponse,
+    ReportFilters,
+    SlaReportItem,
+    SlaReportResponse,
+    SupplierReportItem,
+    SupplierReportResponse,
+    TicketReportItem,
+    TicketReportResponse,
+    UnitReportItem,
+    UnitReportResponse,
+)
 from app.schemas.supplier import SupplierCreate, SupplierListParams, SupplierListResponse, SupplierResponse, SupplierUpdate
 from app.schemas.ticket import (
     TicketCreate,
@@ -77,7 +90,12 @@ __all__ = [
     "LateTicketsPreviewItem",
     "LoginRequest",
     "PaginatedResponse",
+    "ReportFilters",
     "SlaSummary",
+    "SlaReportItem",
+    "SlaReportResponse",
+    "SupplierReportItem",
+    "SupplierReportResponse",
     "SupplierCreate",
     "SupplierListParams",
     "SupplierListResponse",
@@ -101,6 +119,8 @@ __all__ = [
     "TicketProgressUpdateRequest",
     "TicketResolveRequest",
     "TicketResponse",
+    "TicketReportItem",
+    "TicketReportResponse",
     "TicketStartExecutionRequest",
     "TicketSupplierSummary",
     "TicketTriageRequest",
@@ -110,6 +130,8 @@ __all__ = [
     "UnitCreate",
     "UnitCostRankingItem",
     "UnitFuelNozzlesRankingItem",
+    "UnitReportItem",
+    "UnitReportResponse",
     "UnitListParams",
     "UnitListResponse",
     "UnitResponse",
@@ -121,4 +143,6 @@ __all__ = [
     "UserListResponse",
     "UserResponse",
     "UserUpdate",
+    "CostReportItem",
+    "CostReportResponse",
 ]

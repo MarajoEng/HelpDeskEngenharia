@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
+
 import { listAuditLogs } from "../api/auditApi";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/ui/ErrorState";
+import FilterBar from "../components/ui/FilterBar";
+import Input from "../components/ui/Input";
+import LoadingState from "../components/ui/LoadingState";
+import PageHeader from "../components/ui/PageHeader";
+import Pagination from "../components/ui/Pagination";
+import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
 import type { AuditLog, AuditLogFilters } from "../types/audit";
+import { formatAuditDate } from "../utils/formatters";
+import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
 
 const PAGE_SIZE = 20;
 
@@ -31,10 +44,6 @@ const ACTION_LABELS: Record<string, string> = {
   sla_monitor_run: "Monitor SLA executado",
 };
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" });
-}
-
 export default function AuditLogsPage() {
   const { token, user } = useAuth();
   const [items, setItems] = useState<AuditLog[]>([]);
@@ -54,13 +63,14 @@ export default function AuditLogsPage() {
 
   if (user?.role !== "admin") {
     return (
-      <div className="screen-state">
-        <div className="screen-state__card panel">
-          <p className="eyebrow">Acesso restrito</p>
-          <h2>Sem permissao</h2>
-          <p>Apenas administradores podem acessar o log de auditoria.</p>
-        </div>
-      </div>
+      <section className="page">
+        <PageHeader
+          eyebrow="Acesso restrito"
+          title="Sem permissao"
+          description="Apenas administradores podem acessar o log de auditoria."
+        />
+        <ErrorState description="Seu perfil nao pode visualizar a auditoria do sistema." />
+      </section>
     );
   }
 
@@ -83,8 +93,8 @@ export default function AuditLogsPage() {
         setTotal(data.total);
         setPages(data.pages);
       })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Erro ao carregar auditoria.");
+      .catch((requestError: unknown) => {
+        setError(getErrorMessage(requestError, "Erro ao carregar auditoria."));
       })
       .finally(() => setLoading(false));
   }, [token, page, search, actionFilter, entityTypeFilter]);
@@ -107,77 +117,56 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">Administracao</p>
-          <h1>Log de Auditoria</h1>
-          <p className="page-header__subtitle">
-            Registro de acoes realizadas no sistema. Total: {total} evento(s).
-          </p>
-        </div>
-      </div>
+    <section className="page">
+      <PageHeader
+        eyebrow="Administracao"
+        title="Log de auditoria"
+        description={`Registro de acoes realizadas no sistema. Total: ${total} evento(s).`}
+      />
 
-      <div className="panel filters-panel">
-        <div className="filters-row">
-          <div className="form-field">
-            <label className="form-label">Busca</label>
-            <input
-              className="form-input"
-              type="text"
-              placeholder="Acao, entidade, usuario..."
-              value={pendingSearch}
-              onChange={(e) => setPendingSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && applyFilters()}
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label">Acao</label>
-            <input
-              className="form-input"
-              type="text"
-              placeholder="ex: login_success"
-              value={pendingAction}
-              onChange={(e) => setPendingAction(e.target.value)}
-            />
-          </div>
-          <div className="form-field">
-            <label className="form-label">Entidade</label>
-            <input
-              className="form-input"
-              type="text"
-              placeholder="ex: ticket, user"
-              value={pendingEntityType}
-              onChange={(e) => setPendingEntityType(e.target.value)}
-            />
-          </div>
+      <section className="panel panel--stack">
+        <FilterBar columns={4}>
+          <Input
+            label="Busca"
+            type="text"
+            placeholder="Acao, entidade, usuario..."
+            value={pendingSearch}
+            onChange={(event) => setPendingSearch(event.target.value)}
+            onKeyDown={(event) => event.key === "Enter" && applyFilters()}
+          />
+          <Input
+            label="Acao"
+            type="text"
+            placeholder="ex: login_success"
+            value={pendingAction}
+            onChange={(event) => setPendingAction(event.target.value)}
+          />
+          <Input
+            label="Entidade"
+            type="text"
+            placeholder="ex: ticket, user"
+            value={pendingEntityType}
+            onChange={(event) => setPendingEntityType(event.target.value)}
+          />
           <div className="filters-actions">
-            <button className="button-primary" type="button" onClick={applyFilters}>
+            <Button variant="primary" type="button" onClick={applyFilters}>
               Filtrar
-            </button>
-            <button className="button-secondary" type="button" onClick={clearFilters}>
+            </Button>
+            <Button variant="secondary" type="button" onClick={clearFilters}>
               Limpar
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
+        </FilterBar>
 
-      {error ? (
-        <div className="panel panel--error">
-          <p>{error}</p>
-        </div>
-      ) : loading ? (
-        <div className="panel">
-          <p>Carregando...</p>
-        </div>
-      ) : items.length === 0 ? (
-        <div className="panel">
-          <p>Nenhum evento de auditoria encontrado.</p>
-        </div>
-      ) : (
-        <div className="panel">
-          <div className="table-wrapper">
-            <table className="data-table">
+        {error ? (
+          <ErrorState description={error} />
+        ) : loading ? (
+          <LoadingState title="Carregando auditoria" />
+        ) : items.length === 0 ? (
+          <EmptyState title="Nenhum evento encontrado" description={LIST_EMPTY_MESSAGES.audit} />
+        ) : (
+          <>
+            <Table minWidth={1120}>
               <thead>
                 <tr>
                   <th>Data/Hora</th>
@@ -191,12 +180,10 @@ export default function AuditLogsPage() {
               <tbody>
                 {items.map((log) => (
                   <tr key={log.id}>
-                    <td className="text-mono text-sm">{formatDate(log.created_at)}</td>
+                    <td className="text-mono text-sm">{formatAuditDate(log.created_at)}</td>
                     <td>{log.actor_user_name ?? <span className="text-muted">Sistema</span>}</td>
                     <td>
-                      <span className="status-badge status-badge--info">
-                        {ACTION_LABELS[log.action] ?? log.action}
-                      </span>
+                      <Badge tone="info">{ACTION_LABELS[log.action] ?? log.action}</Badge>
                     </td>
                     <td>
                       {log.entity_type}
@@ -206,41 +193,28 @@ export default function AuditLogsPage() {
                     <td className="text-sm">
                       {log.metadata_json && Object.keys(log.metadata_json).length > 0
                         ? Object.entries(log.metadata_json)
-                            .map(([k, v]) => `${k}: ${v}`)
+                            .map(([key, value]) => `${key}: ${value}`)
                             .join(", ")
                         : "—"}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
 
-          {pages > 1 && (
-            <div className="pagination">
-              <button
-                className="button-secondary"
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                Pagina {page} de {pages}
-              </span>
-              <button
-                className="button-secondary"
-                type="button"
-                disabled={page >= pages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Proxima
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+            {pages > 1 ? (
+              <Pagination
+                total={total}
+                label="evento(s)"
+                page={page}
+                pages={pages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+              />
+            ) : null}
+          </>
+        )}
+      </section>
+    </section>
   );
 }

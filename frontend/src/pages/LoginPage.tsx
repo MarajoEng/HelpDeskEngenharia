@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import Input from "../components/ui/Input";
 import { useAuth } from "../hooks/useAuth";
 
 export default function LoginPage() {
@@ -36,7 +39,7 @@ export default function LoginPage() {
 
   return (
     <div className="auth-shell">
-      <section className="auth-hero panel">
+      <Card as="section" className="auth-hero">
         <p className="eyebrow">Portal de Chamados Engenharia</p>
         <h1>Acesso seguro para operacao e engenharia.</h1>
         <p className="auth-hero__lead">
@@ -54,9 +57,9 @@ export default function LoginPage() {
             <p>Sem cadastro publico, sem refresh token e sem CRUD liberado.</p>
           </article>
         </div>
-      </section>
+      </Card>
 
-      <section className="auth-panel panel">
+      <Card as="section" className="auth-panel">
         <div className="auth-panel__header">
           <p className="eyebrow">Login</p>
           <h2>Entrar</h2>
@@ -67,41 +70,37 @@ export default function LoginPage() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>Email</span>
-            <input
-              autoComplete="email"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="admin@local.test"
-              required
-            />
-          </label>
+          <Input
+            autoComplete="email"
+            label="Email"
+            name="email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="admin@local.test"
+            required
+          />
 
-          <label className="field">
-            <span>Senha</span>
-            <input
-              autoComplete="current-password"
-              name="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Sua senha"
-              required
-            />
-          </label>
+          <Input
+            autoComplete="current-password"
+            label="Senha"
+            name="password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Sua senha"
+            required
+          />
 
           {errorMessage ? (
             <div className="form-message form-message--error">{errorMessage}</div>
           ) : null}
 
-          <button className="button-primary" type="submit" disabled={isLoading}>
+          <Button block variant="primary" type="submit" disabled={isLoading}>
             {isLoading ? "Validando acesso..." : "Entrar"}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
     </div>
   );
 }

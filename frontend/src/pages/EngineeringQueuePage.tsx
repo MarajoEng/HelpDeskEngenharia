@@ -4,6 +4,18 @@ import { Link } from "react-router-dom";
 import { listTickets } from "../api/ticketApi";
 import { listUnits } from "../api/unitApi";
 import TriageTicketModal from "../components/tickets/TriageTicketModal";
+import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import ErrorState from "../components/ui/ErrorState";
+import FilterBar from "../components/ui/FilterBar";
+import LoadingState from "../components/ui/LoadingState";
+import PageHeader from "../components/ui/PageHeader";
+import Pagination from "../components/ui/Pagination";
+import PriorityBadge from "../components/ui/PriorityBadge";
+import SeverityBadge from "../components/ui/SeverityBadge";
+import StatCard from "../components/ui/StatCard";
+import StatusBadge from "../components/ui/StatusBadge";
+import Table from "../components/ui/Table";
 import {
   PRIORITY_LABELS,
   SEVERITY_LABELS,
@@ -11,13 +23,11 @@ import {
   canAccessEngineeringQueue,
   formatDate,
   isSlaLate,
-  priorityClass,
-  severityClass,
-  statusClass,
 } from "../components/tickets/ticketUi";
 import { useAuth } from "../hooks/useAuth";
 import type { Ticket, TicketFilters, TicketPriority, TicketSeverity, TicketStatus } from "../types/ticket";
 import type { Unit } from "../types/unit";
+import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
 
 const initialFilters: TicketFilters = {
   queue: "engineering",
@@ -92,7 +102,7 @@ export default function EngineeringQueuePage() {
       })
       .catch((error: unknown) => {
         if (!isActive) return;
-        setErrorMessage(error instanceof Error ? error.message : "Nao foi possivel carregar a fila da engenharia.");
+        setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar a fila da engenharia."));
       })
       .finally(() => {
         if (isActive) {
@@ -182,55 +192,53 @@ export default function EngineeringQueuePage() {
   if (!canAccessPage) {
     return (
       <section className="page">
-        <div className="page__header">
-          <div>
-            <p className="eyebrow">Engenharia</p>
-            <h2 className="page__title">Acesso indisponivel</h2>
-            <p className="page__description">A fila de triagem e reservada para admin e engineering.</p>
-          </div>
-        </div>
-        <div className="state-card state-card--error">Seu perfil nao pode acessar a fila da engenharia.</div>
+        <PageHeader
+          eyebrow="Engenharia"
+          title="Acesso indisponivel"
+          description="A fila de triagem e reservada para admin e engineering."
+        />
+        <ErrorState description="Seu perfil nao pode acessar a fila da engenharia." />
       </section>
     );
   }
 
   return (
     <section className="page">
-      <div className="page__header">
-        <div>
-          <p className="eyebrow">Engenharia central</p>
-          <h2 className="page__title">Fila da engenharia</h2>
-          <p className="page__description">
-            Triagem tecnica de chamados abertos, em triagem ou aguardando retorno da unidade.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Engenharia central"
+        title="Fila da engenharia"
+        description="Triagem tecnica, priorizacao, atribuicao e definicao de SLA da operacao."
+      />
 
       <section className="summary-grid">
-        <article className="summary-card">
-          <span className="summary-card__label">Na fila</span>
-          <strong>{isLoadingSummary ? "..." : summary.total}</strong>
-          <p>Chamados elegiveis para triagem com os filtros atuais.</p>
-        </article>
-        <article className="summary-card">
-          <span className="summary-card__label">Abertos</span>
-          <strong>{isLoadingSummary ? "..." : summary.open}</strong>
-          <p>Itens ainda sem passagem tecnica da engenharia.</p>
-        </article>
-        <article className="summary-card">
-          <span className="summary-card__label">Em triagem</span>
-          <strong>{isLoadingSummary ? "..." : summary.triage}</strong>
-          <p>Chamados com analise tecnica ativa nesta fase.</p>
-        </article>
-        <article className="summary-card">
-          <span className="summary-card__label">Ag. unidade</span>
-          <strong>{isLoadingSummary ? "..." : summary.waiting_unit}</strong>
-          <p>Chamados que podem voltar para nova tratativa tecnica.</p>
-        </article>
+        <StatCard
+          label="Na fila"
+          tone="accent"
+          value={isLoadingSummary ? "..." : summary.total}
+          description="Chamados elegiveis para triagem com os filtros atuais."
+        />
+        <StatCard
+          label="Abertos"
+          tone="info"
+          value={isLoadingSummary ? "..." : summary.open}
+          description="Itens ainda sem passagem tecnica da engenharia."
+        />
+        <StatCard
+          label="Em triagem"
+          tone="warning"
+          value={isLoadingSummary ? "..." : summary.triage}
+          description="Chamados com analise tecnica ativa nesta fase."
+        />
+        <StatCard
+          label="Ag. unidade"
+          tone="neutral"
+          value={isLoadingSummary ? "..." : summary.waiting_unit}
+          description="Chamados que podem voltar para nova tratativa tecnica."
+        />
       </section>
 
       <section className="panel">
-        <div className="filters engineering-filters">
+        <FilterBar columns={5} className="engineering-filters">
           <label className="field">
             <span>Unidade</span>
             <select
@@ -299,116 +307,98 @@ export default function EngineeringQueuePage() {
             />
             <span>Somente atrasados</span>
           </label>
-        </div>
+        </FilterBar>
 
         <div className="engineering-toolbar">
           <span className="text-muted">Use a fila para assumir responsavel, ajustar criticidade e definir SLA.</span>
-          <button className="button-secondary" type="button" onClick={clearFilters}>
+          <Button variant="secondary" type="button" onClick={clearFilters}>
             Limpar filtros
-          </button>
+          </Button>
         </div>
 
         {successMessage ? <div className="state-card state-card--success">{successMessage}</div> : null}
-        {isLoading ? <div className="state-card">Carregando fila da engenharia...</div> : null}
-        {!isLoading && errorMessage ? <div className="state-card state-card--error">{errorMessage}</div> : null}
+        {isLoading ? <LoadingState title="Carregando fila da engenharia" description="Atualizando chamados elegiveis para triagem." /> : null}
+        {!isLoading && errorMessage ? <ErrorState description={errorMessage} /> : null}
         {!isLoading && !errorMessage && data.items.length === 0 ? (
-          <div className="state-card">
-            Nenhum chamado da fila de engenharia corresponde aos filtros selecionados.
-          </div>
+          <EmptyState
+            title="Fila sem chamados"
+            description={LIST_EMPTY_MESSAGES.engineering}
+          />
         ) : null}
 
         {!isLoading && !errorMessage && data.items.length > 0 ? (
           <>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Chamado</th>
-                    <th>Unidade</th>
-                    <th>Titulo</th>
-                    <th>Status</th>
-                    <th>Prioridade</th>
-                    <th>Severidade</th>
-                    <th>Responsavel</th>
-                    <th>SLA</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((ticket) => {
-                    const late = isSlaLate(ticket);
-                    return (
-                      <tr key={ticket.id}>
-                        <td>
-                          <span style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
-                            {ticket.ticket_number}
+            <Table minWidth={980}>
+              <thead>
+                <tr>
+                  <th>Chamado</th>
+                  <th>Unidade</th>
+                  <th>Titulo</th>
+                  <th>Status</th>
+                  <th>Prioridade</th>
+                  <th>Severidade</th>
+                  <th>Responsavel</th>
+                  <th>SLA</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((ticket) => {
+                  const late = isSlaLate(ticket);
+                  return (
+                    <tr key={ticket.id}>
+                      <td>
+                        <span className="text-mono text-sm">{ticket.ticket_number}</span>
+                      </td>
+                      <td>{[ticket.unit_code, ticket.unit_name].filter(Boolean).join(" · ") || `#${ticket.unit_id}`}</td>
+                      <td style={{ maxWidth: "260px" }}>
+                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {ticket.title}
+                        </span>
+                      </td>
+                      <td>
+                        <StatusBadge status={ticket.status} />
+                      </td>
+                      <td>
+                        <PriorityBadge priority={ticket.priority} />
+                      </td>
+                      <td>
+                        <SeverityBadge severity={ticket.severity} />
+                      </td>
+                      <td>{ticket.assigned_to_user_name ?? "Nao atribuido"}</td>
+                      <td>
+                        {ticket.sla_due_at ? (
+                          <span className={late ? "text-danger" : "text-muted"}>
+                            {late ? "Atrasado" : formatDate(ticket.sla_due_at)}
                           </span>
-                        </td>
-                        <td>{[ticket.unit_code, ticket.unit_name].filter(Boolean).join(" · ") || `#${ticket.unit_id}`}</td>
-                        <td style={{ maxWidth: "260px" }}>
-                          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {ticket.title}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={statusClass(ticket.status)}>{STATUS_LABELS[ticket.status]}</span>
-                        </td>
-                        <td>
-                          <span className={priorityClass(ticket.priority)}>{PRIORITY_LABELS[ticket.priority]}</span>
-                        </td>
-                        <td>
-                          <span className={severityClass(ticket.severity)}>{SEVERITY_LABELS[ticket.severity]}</span>
-                        </td>
-                        <td>{ticket.assigned_to_user_name ?? "Nao atribuido"}</td>
-                        <td>
-                          {ticket.sla_due_at ? (
-                            <span className={late ? "text-danger" : "text-muted"}>
-                              {late ? "Atrasado" : formatDate(ticket.sla_due_at)}
-                            </span>
-                          ) : (
-                            <span className="text-muted">Sem SLA</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="table-actions">
-                            <button className="button-secondary" type="button" onClick={() => setSelectedTicket(ticket)}>
-                              Fazer triagem
-                            </button>
-                            <Link className="button-link" to={`/tickets/${ticket.id}`}>
-                              Detalhe
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        ) : (
+                          <span className="text-muted">Sem SLA</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="table-actions">
+                          <Button variant="secondary" size="sm" type="button" onClick={() => setSelectedTicket(ticket)}>
+                            Fazer triagem
+                          </Button>
+                          <Link className="ui-link-button" to={`/tickets/${ticket.id}`}>
+                            Detalhe
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
 
-            <div className="pagination-bar">
-              <span style={{ fontSize: "0.9rem" }}>
-                {data.total} chamado(s) · pagina {data.page} de {Math.max(data.pages, 1)}
-              </span>
-              <div className="pagination-actions">
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.page <= 1}
-                  onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, (current.page || 1) - 1) }))}
-                >
-                  Anterior
-                </button>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={data.pages === 0 || data.page >= data.pages}
-                  onClick={() => setFilters((current) => ({ ...current, page: (current.page || 1) + 1 }))}
-                >
-                  Proxima
-                </button>
-              </div>
-            </div>
+            <Pagination
+              total={data.total}
+              label="chamado(s)"
+              page={data.page}
+              pages={data.pages}
+              onPrevious={() => setFilters((current) => ({ ...current, page: Math.max(1, (current.page || 1) - 1) }))}
+              onNext={() => setFilters((current) => ({ ...current, page: (current.page || 1) + 1 }))}
+            />
           </>
         ) : null}
       </section>
