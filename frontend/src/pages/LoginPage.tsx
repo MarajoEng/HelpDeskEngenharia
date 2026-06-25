@@ -100,6 +100,18 @@ export default function LoginPage() {
             {isLoading ? "Validando acesso..." : "Entrar"}
           </Button>
         </form>
+
+        {import.meta.env.DEV && (
+          <div style={{ marginTop: "2rem", padding: "1rem", backgroundColor: "var(--bg-muted, #f8f9fa)", borderRadius: "6px", fontSize: "0.85rem", border: "1px solid var(--border-color, #e9ecef)" }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "0.9rem" }}>Credenciais de Demo (Apenas Local)</h3>
+            <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "var(--text-muted, #6c757d)" }}>
+              <li><strong>admin@local.test</strong> / admin123</li>
+              <li><strong>engenharia@local.test</strong> / admin123</li>
+              <li><strong>diretor@local.test</strong> / admin123</li>
+              <li><strong>gerente0101@local.test</strong> / admin123</li>
+            </ul>
+          </div>
+        )}
       </Card>
     </div>
   );

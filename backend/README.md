@@ -54,6 +54,33 @@ alembic upgrade head
 
 Nao ha migration nova na FASE 10: `ticket_attachments` ja atende o contrato de evidencia e o Alembic continua em `head`.
 
+## Preparação de Ambiente de Demonstração (Demo)
+
+Para rodar a demonstração executiva com dados reais, certifique-se de que o ambiente seja o de desenvolvimento (`APP_ENV=development`) e siga os comandos abaixo:
+
+```bash
+# 1. Configurar banco e rodar migrations (backend)
+cd backend
+source .venv/bin/activate
+alembic upgrade head
+
+# 2. Popular os dados da Demo (apenas para dev)
+python scripts/seed_demo.py
+
+# 3. Subir o backend
+uvicorn app.main:app --reload
+
+# 4. Subir o frontend (em outro terminal)
+cd frontend
+npm install
+npm run dev
+
+# 5. Opcional: subir o worker do Celery (em outro terminal)
+cd backend
+source .venv/bin/activate
+celery -A app.workers.celery_app.celery_app worker --loglevel=info
+```
+
 ## Contratos da FASE 2.1
 
 - `tickets.severity`: enum controlado com `low`, `medium`, `high` e `critical`.
