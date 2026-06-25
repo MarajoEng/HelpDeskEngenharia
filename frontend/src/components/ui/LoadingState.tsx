@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import Card from "./Card";
-
 interface LoadingStateProps {
   title?: string;
   description?: ReactNode;
@@ -12,12 +10,12 @@ export default function LoadingState({
   description = "Aguarde enquanto as informacoes sao atualizadas.",
 }: LoadingStateProps) {
   return (
-    <Card className="ui-state ui-state--loading">
-      <div className="ui-state__spinner" aria-hidden="true" />
-      <div className="ui-state__content">
-        <h3>{title}</h3>
-        <p>{description}</p>
+    <div className="flex items-center gap-4 p-5 rounded-xl border border-slate-200 bg-white">
+      <div className="ui-spinner" aria-hidden="true" />
+      <div>
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        <p className="text-xs text-slate-500 mt-0.5">{description}</p>
       </div>
-    </Card>
+    </div>
   );
 }

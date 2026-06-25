@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import AppLayout from "./components/layout/AppLayout";
+import SettingsLayout from "./components/settings/SettingsLayout";
 import LoadingState from "./components/ui/LoadingState";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import ApprovalLevelsPage from "./pages/ApprovalLevelsPage";
@@ -24,11 +25,13 @@ function ProtectedShell() {
 
   if (isLoading) {
     return (
-      <div className="screen-state">
-        <LoadingState
-          title="Validando sessao"
-          description="Aguarde enquanto o token atual eh conferido no backend."
-        />
+      <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+        <div className="max-w-sm w-full">
+          <LoadingState
+            title="Validando sessao"
+            description="Aguarde enquanto o token atual eh conferido no backend."
+          />
+        </div>
       </div>
     );
   }
@@ -49,11 +52,13 @@ function LoginRoute() {
 
   if (isLoading) {
     return (
-      <div className="screen-state">
-        <LoadingState
-          title="Preparando acesso"
-          description="Carregando o contexto da sessao autenticada."
-        />
+      <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+        <div className="max-w-sm w-full">
+          <LoadingState
+            title="Preparando acesso"
+            description="Carregando o contexto da sessao autenticada."
+          />
+        </div>
       </div>
     );
   }
@@ -73,17 +78,28 @@ export default function App() {
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/approval-levels" element={<ApprovalLevelsPage />} />
           <Route path="/engineering" element={<EngineeringQueuePage />} />
           <Route path="/tickets" element={<TicketsPage />} />
           <Route path="/tickets/new" element={<CreateTicketPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
-          <Route path="/audit-logs" element={<AuditLogsPage />} />
-          <Route path="/suppliers" element={<SuppliersPage />} />
-          <Route path="/units" element={<UnitsPage />} />
-          <Route path="/users" element={<UsersPage />} />
+
+          {/* Rotas agrupadas de configurações */}
+          <Route path="/settings" element={<SettingsLayout />}>
+            <Route path="units" element={<UnitsPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="suppliers" element={<SuppliersPage />} />
+            <Route path="approval-levels" element={<ApprovalLevelsPage />} />
+            <Route path="audit-logs" element={<AuditLogsPage />} />
+          </Route>
+
+          {/* Redirecionamentos para retrocompatibilidade */}
+          <Route path="/units" element={<Navigate to="/settings/units" replace />} />
+          <Route path="/users" element={<Navigate to="/settings/users" replace />} />
+          <Route path="/suppliers" element={<Navigate to="/settings/suppliers" replace />} />
+          <Route path="/approval-levels" element={<Navigate to="/settings/approval-levels" replace />} />
+          <Route path="/audit-logs" element={<Navigate to="/settings/audit-logs" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import Button from "../components/ui/Button";
-import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import { useAuth } from "../hooks/useAuth";
 
@@ -38,81 +37,76 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-shell">
-      <Card as="section" className="auth-hero">
-        <p className="eyebrow">Portal de Chamados Engenharia</p>
-        <h1>Acesso seguro para operacao e engenharia.</h1>
-        <p className="auth-hero__lead">
-          Entre com um usuario valido para consultar o contexto inicial da
-          plataforma e validar as permissoes no backend.
-        </p>
-
-        <div className="auth-hero__highlights">
-          <article className="info-card">
-            <h2>Controle no backend</h2>
-            <p>JWT com expiracao, usuario ativo e bloqueio por perfil.</p>
-          </article>
-          <article className="info-card">
-            <h2>Base para as proximas fases</h2>
-            <p>Sem cadastro publico, sem refresh token e sem CRUD liberado.</p>
-          </article>
-        </div>
-      </Card>
-
-      <Card as="section" className="auth-panel">
-        <div className="auth-panel__header">
-          <p className="eyebrow">Login</p>
-          <h2>Entrar</h2>
-          <p>
-            Use um usuario existente. Para ambiente local, o admin dev pode ser
-            criado pelo script documentado.
-          </p>
-        </div>
-
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <Input
-            autoComplete="email"
-            label="Email"
-            name="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="admin@local.test"
-            required
-          />
-
-          <Input
-            autoComplete="current-password"
-            label="Senha"
-            name="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Sua senha"
-            required
-          />
-
-          {errorMessage ? (
-            <div className="form-message form-message--error">{errorMessage}</div>
-          ) : null}
-
-          <Button block variant="primary" type="submit" disabled={isLoading}>
-            {isLoading ? "Validando acesso..." : "Entrar"}
-          </Button>
-        </form>
-
-        {import.meta.env.DEV && (
-          <div style={{ marginTop: "2rem", padding: "1rem", backgroundColor: "var(--bg-muted, #f8f9fa)", borderRadius: "6px", fontSize: "0.85rem", border: "1px solid var(--border-color, #e9ecef)" }}>
-            <h3 style={{ margin: "0 0 8px 0", fontSize: "0.9rem" }}>Credenciais de Demo (Apenas Local)</h3>
-            <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "var(--text-muted, #6c757d)" }}>
-              <li><strong>admin@local.test</strong> / admin123</li>
-              <li><strong>engenharia@local.test</strong> / admin123</li>
-              <li><strong>diretor@local.test</strong> / admin123</li>
-              <li><strong>gerente0101@local.test</strong> / admin123</li>
-            </ul>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        {/* Logo area */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-teal-600 mb-4">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
           </div>
-        )}
-      </Card>
+          <h1 className="text-xl font-bold text-white">Portal de Chamados</h1>
+          <p className="text-sm text-slate-400 mt-1">Engenharia e Manutencao Estrutural</p>
+        </div>
+
+        {/* Login card */}
+        <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-1">Acesso seguro</p>
+            <h2 className="text-2xl font-bold text-slate-900">Entrar</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Use um usuario existente para acessar o sistema.
+            </p>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <Input
+              autoComplete="email"
+              label="Email"
+              name="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="admin@local.test"
+              required
+            />
+
+            <Input
+              autoComplete="current-password"
+              label="Senha"
+              name="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Sua senha"
+              required
+            />
+
+            {errorMessage ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            <Button block variant="primary" type="submit" disabled={isLoading} size="lg">
+              {isLoading ? "Validando acesso..." : "Entrar"}
+            </Button>
+          </form>
+
+          {import.meta.env.DEV && (
+            <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+              <p className="font-semibold text-slate-700 mb-2">Credenciais de Demo (Apenas Local)</p>
+              <ul className="space-y-1 text-slate-500">
+                <li><strong className="text-slate-700">admin@local.test</strong> / admin123</li>
+                <li><strong className="text-slate-700">engenharia@local.test</strong> / admin123</li>
+                <li><strong className="text-slate-700">diretor@local.test</strong> / admin123</li>
+                <li><strong className="text-slate-700">gerente0101@local.test</strong> / admin123</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

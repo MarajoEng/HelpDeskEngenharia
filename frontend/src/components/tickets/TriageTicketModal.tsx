@@ -127,7 +127,7 @@ export default function TriageTicketModal({
     let isActive = true;
     setIsLoadingAssignees(true);
 
-    listTriageAssignees(token, { page: 1, page_size: 100, sort: "name_asc" })
+    listTriageAssignees(token, { page: 1, page_size: 100 })
       .then((response) => {
         if (!isActive) return;
 

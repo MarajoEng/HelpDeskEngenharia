@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 
 import Badge from "./Badge";
-import Card from "./Card";
-import { cx } from "./cx";
 import type { BadgeTone } from "./statusOptions";
 
 interface StatCardProps {
@@ -20,16 +18,23 @@ export default function StatCard({
   description,
   tone = "accent",
   meta,
-  className,
+  className = "",
 }: StatCardProps) {
   return (
-    <Card className={cx("ui-stat-card", className)}>
-      <div className="ui-stat-card__top">
+    <div
+      className={[
+        "bg-white rounded-xl border border-slate-200 p-5 shadow-sm",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="flex items-start justify-between gap-2 mb-3">
         <Badge tone={tone}>{label}</Badge>
-        {meta}
+        {meta ? <div className="text-xs text-slate-500">{meta}</div> : null}
       </div>
-      <strong className="ui-stat-card__value">{value}</strong>
-      <p className="ui-stat-card__description">{description}</p>
-    </Card>
+      <p className="text-2xl font-bold text-slate-900 leading-none mb-1">{value}</p>
+      <p className="text-sm text-slate-500">{description}</p>
+    </div>
   );
 }

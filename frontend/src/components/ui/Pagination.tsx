@@ -1,5 +1,4 @@
 import Button from "./Button";
-import { cx } from "./cx";
 
 interface PaginationProps {
   page: number;
@@ -18,18 +17,25 @@ export default function Pagination({
   label = "registro(s)",
   onPrevious,
   onNext,
-  className,
+  className = "",
 }: PaginationProps) {
   return (
-    <div className={cx("ui-pagination", className)}>
-      <span className="ui-pagination__summary">
+    <div
+      className={[
+        "flex items-center justify-between gap-4 flex-wrap",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <span className="text-sm text-slate-500">
         {total} {label} · pagina {page} de {Math.max(pages, 1)}
       </span>
-      <div className="ui-pagination__actions">
-        <Button variant="secondary" onClick={onPrevious} disabled={page <= 1}>
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={onPrevious} disabled={page <= 1}>
           Anterior
         </Button>
-        <Button variant="secondary" onClick={onNext} disabled={pages === 0 || page >= pages}>
+        <Button variant="secondary" size="sm" onClick={onNext} disabled={pages === 0 || page >= pages}>
           Proxima
         </Button>
       </div>

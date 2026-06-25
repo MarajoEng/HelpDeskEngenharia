@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import ErrorBoundary from "../components/ui/ErrorBoundary";
+import { ApiError } from "../api/http";
 import {
   exportCostReportCsv,
   exportSlaReportCsv,
@@ -50,7 +52,7 @@ import type {
   TicketReportItem,
   UnitReportItem,
 } from "../types/report";
-import { formatDate, formatMoney } from "../utils/formatters";
+import { formatDate, formatMoney, formatNumberSafe, formatPercentSafe, toNumberSafe } from "../utils/formatters";
 import { getErrorMessage } from "../utils/messages";
 
 const initialFilters: ReportFilters = {
@@ -108,7 +110,7 @@ const reportTabs: Array<{
 ];
 
 export default function ReportsPage() {
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
   const [reportType, setReportType] = useState<ReportType>("tickets");
   const [filters, setFilters] = useState<ReportFilters>(initialFilters);
   const [draftFilters, setDraftFilters] = useState<ReportFilters>(initialFilters);
@@ -139,7 +141,7 @@ export default function ReportsPage() {
           setDraftFilters((current) => ({ ...current, unit_id: unit.id }));
           setFilters((current) => ({ ...current, unit_id: unit.id }));
         } else {
-          const response = await listUnits(currentToken, { page: 1, page_size: 200, sort: "name_asc" });
+          const response = await listUnits(currentToken, { page: 1, page_size: 100 });
           if (!isActive) return;
           setUnits(response.items);
         }
@@ -149,7 +151,7 @@ export default function ReportsPage() {
       }
 
       try {
-        const response = await listSuppliers(currentToken, { page: 1, page_size: 200 });
+        const response = await listSuppliers(currentToken, { page: 1, page_size: 100 });
         if (!isActive) return;
         setSuppliers(response.items);
       } catch {
@@ -193,7 +195,14 @@ export default function ReportsPage() {
       })
       .catch((error: unknown) => {
         if (!isActive) return;
-        setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar o relatorio."));
+        if (error instanceof ApiError && error.status === 401) {
+          setErrorMessage("Sessao expirada. Faca login novamente.");
+          logout();
+        } else if (error instanceof ApiError && error.status === 422) {
+          setErrorMessage("Filtros invalidos. Verifique os parametros selecionados.");
+        } else {
+          setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar o relatorio."));
+        }
       })
       .finally(() => {
         if (isActive) {
@@ -262,7 +271,13 @@ export default function ReportsPage() {
       URL.revokeObjectURL(blobUrl);
       setExportMessage(`Exportacao concluida para ${activeTab.label.toLowerCase()}.`);
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, "Nao foi possivel exportar o CSV."));
+      const errorStatus = error instanceof ApiError ? error.status : 500;
+      if (errorStatus === 401) {
+        setErrorMessage("Sessao expirada. Faca login novamente.");
+        logout();
+      } else {
+        setErrorMessage(getErrorMessage(error, "Nao foi possivel exportar o CSV."));
+      }
     } finally {
       setIsExporting(false);
     }
@@ -293,8 +308,8 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
+            {items.map((item, index) => (
+              <tr key={`ticket-${item.id}-${index}`}>
                 <td className="text-mono text-sm">{item.ticket_number}</td>
                 <td>
                   <strong>{item.unit_code}</strong>
@@ -348,7 +363,7 @@ export default function ReportsPage() {
           </thead>
           <tbody>
             {items.map((item, index) => (
-              <tr key={`${item.unit_id}-${item.category}-${item.supplier_id ?? "none"}-${index}`}>
+              <tr key={`cost-${item.unit_id}-${item.category}-${item.supplier_id ?? "none"}-${index}`}>
                 <td>
                   <strong>{item.unit_code}</strong>
                   <div className="text-sm text-muted">{item.unit_name}</div>
@@ -385,26 +400,29 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.unit_id}>
-                <td>
-                  <strong>{item.unit_code}</strong>
-                  <div className="text-sm text-muted">{item.unit_name}</div>
-                </td>
-                <td>{item.total_with_sla}</td>
-                <td>{item.on_track}</td>
-                <td>{item.late}</td>
-                <td>{item.closed_on_time}</td>
-                <td>{item.closed_late}</td>
-                <td>
-                  <Badge tone={item.compliance_rate >= 80 ? "success" : item.compliance_rate >= 50 ? "warning" : "danger"}>
-                    {item.compliance_rate.toFixed(2)}%
-                  </Badge>
-                </td>
-                <td>{item.average_resolution_hours.toFixed(2)}h</td>
-                <td>{item.average_closure_hours.toFixed(2)}h</td>
-              </tr>
-            ))}
+            {items.map((item, index) => {
+              const rate = toNumberSafe(item.compliance_rate);
+              return (
+                <tr key={`sla-${item.unit_id}-${index}`}>
+                  <td>
+                    <strong>{item.unit_code}</strong>
+                    <div className="text-sm text-muted">{item.unit_name}</div>
+                  </td>
+                  <td>{item.total_with_sla}</td>
+                  <td>{item.on_track}</td>
+                  <td>{item.late}</td>
+                  <td>{item.closed_on_time}</td>
+                  <td>{item.closed_late}</td>
+                  <td>
+                    <Badge tone={rate >= 80 ? "success" : rate >= 50 ? "warning" : "danger"}>
+                      {formatPercentSafe(item.compliance_rate, 2)}
+                    </Badge>
+                  </td>
+                  <td>{formatNumberSafe(item.average_resolution_hours)}h</td>
+                  <td>{formatNumberSafe(item.average_closure_hours)}h</td>
+                </tr>
+              );
+            })}
           </tbody>
         </Table>
       );
@@ -429,20 +447,20 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.unit_id}>
+            {items.map((item, index) => (
+              <tr key={`units-${item.unit_id}-${index}`}>
                 <td>
                   <strong>{item.unit_code}</strong>
                   <div className="text-sm text-muted">{item.unit_name}</div>
                 </td>
-                <td>{item.region}</td>
+                <td>{item.region ?? "—"}</td>
                 <td>{item.total_tickets}</td>
                 <td>{item.critical_tickets}</td>
                 <td>{item.late_tickets}</td>
                 <td>{item.in_progress_tickets}</td>
                 <td>{item.closed_tickets}</td>
                 <td>{formatMoney(item.final_cost_total)}</td>
-                <td>{item.total_fuel_nozzles_stopped}</td>
+                <td>{item.total_fuel_nozzles_stopped ?? 0}</td>
                 <td>{formatMoney(item.estimated_daily_loss_total)}</td>
               </tr>
             ))}
@@ -467,15 +485,15 @@ export default function ReportsPage() {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={item.supplier_id}>
-              <td>{item.supplier_name}</td>
+          {items.map((item, index) => (
+            <tr key={`suppliers-${item.supplier_id}-${index}`}>
+              <td>{item.supplier_name ?? "—"}</td>
               <td>{item.total_tickets}</td>
               <td>{item.in_progress_tickets}</td>
               <td>{item.resolved_tickets}</td>
               <td>{item.closed_tickets}</td>
               <td>{formatMoney(item.final_cost_total)}</td>
-              <td>{item.average_execution_hours.toFixed(2)}h</td>
+              <td>{formatNumberSafe(item.average_execution_hours)}h</td>
               <td>{item.late_execution_tickets}</td>
             </tr>
           ))}
@@ -688,19 +706,21 @@ export default function ReportsPage() {
             description="Ajuste os filtros para localizar registros dentro do escopo permitido."
           />
         ) : (
-          <>
-            {renderReportTable()}
-            {data ? (
-              <Pagination
-                total={data.total}
-                label="linha(s)"
-                page={data.page}
-                pages={data.pages}
-                onPrevious={() => setFilters((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}
-                onNext={() => setFilters((current) => ({ ...current, page: current.page + 1 }))}
-              />
-            ) : null}
-          </>
+          <ErrorBoundary>
+            <>
+              {renderReportTable()}
+              {data ? (
+                <Pagination
+                  total={data.total}
+                  label="linha(s)"
+                  page={data.page}
+                  pages={data.pages}
+                  onPrevious={() => setFilters((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}
+                  onNext={() => setFilters((current) => ({ ...current, page: current.page + 1 }))}
+                />
+              ) : null}
+            </>
+          </ErrorBoundary>
         )}
       </section>
     </section>

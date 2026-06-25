@@ -21,6 +21,8 @@ import type { DashboardFilters, DashboardOverview, DistributionItem, RankingItem
 import type { TicketCategory, TicketStatus } from "../types/ticket";
 import type { Unit } from "../types/unit";
 
+import FilterBar from "../components/ui/FilterBar";
+
 const initialFilters: DashboardFilters = {
   date_from: "",
   date_to: "",
@@ -196,7 +198,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!token || isManager || isSupplier) return;
     let isActive = true;
-    listUnits(token, { page: 1, page_size: 200, sort: "name_asc" })
+    listUnits(token, { page: 1, page_size: 100 })
       .then((response) => {
         if (!isActive) return;
         setUnits(response.items);
@@ -303,7 +305,7 @@ export default function DashboardPage() {
           {isManager ? <span className="status-badge status-badge--info">Escopo da sua unidade</span> : null}
         </div>
 
-        <div className="filters filters--form dashboard-filters">
+        <FilterBar columns={6} dense={true}>
           <label className="field">
             <span>Data inicial</span>
             <input
@@ -385,7 +387,7 @@ export default function DashboardPage() {
               ))}
             </select>
           </label>
-        </div>
+        </FilterBar>
 
         <div className="form-actions">
           <button className="button-secondary" type="button" onClick={clearFilters} disabled={isFilterLoading}>
@@ -409,42 +411,34 @@ export default function DashboardPage() {
             <article className="summary-card">
               <span className="summary-card__label">Abertos</span>
               <strong>{dashboard.executive_cards.total_open}</strong>
-              <p>Chamados que ainda aguardam evolucao no fluxo.</p>
             </article>
             <article className="summary-card">
               <span className="summary-card__label">Atrasados</span>
               <strong>{dashboard.executive_cards.total_late}</strong>
-              <p>Itens com SLA vencido e ainda nao finalizados.</p>
             </article>
             <article className="summary-card">
               <span className="summary-card__label">Criticos</span>
               <strong>{dashboard.executive_cards.total_critical}</strong>
-              <p>Demandas com severidade `critical` dentro do recorte atual.</p>
             </article>
             <article className="summary-card">
               <span className="summary-card__label">Em execucao</span>
               <strong>{dashboard.executive_cards.total_in_progress}</strong>
-              <p>Chamados tecnicamente em atendimento ativo.</p>
             </article>
             <article className="summary-card">
               <span className="summary-card__label">Bicos parados</span>
               <strong>{dashboard.executive_cards.total_fuel_nozzles_stopped}</strong>
-              <p>Soma operacional de bicos impactados.</p>
             </article>
             <article className="summary-card">
               <span className="summary-card__label">Perda diaria</span>
               <strong>{formatMoney(String(dashboard.executive_cards.estimated_daily_loss_total))}</strong>
-              <p>Perda estimada diaria acumulada no recorte.</p>
             </article>
             <article className="summary-card">
               <span className="summary-card__label">Custo final</span>
               <strong>{formatMoney(String(dashboard.executive_cards.final_cost_total))}</strong>
-              <p>Total final registrado em chamados resolvidos ou fechados.</p>
             </article>
             <article className="summary-card">
               <span className="summary-card__label">SLA</span>
               <strong>{dashboard.executive_cards.sla_compliance_rate}%</strong>
-              <p>Percentual de conformidade seguro para os tickets com SLA calculavel.</p>
             </article>
           </section>
 
@@ -558,7 +552,7 @@ export default function DashboardPage() {
             />
           </section>
 
-          <section className="dashboard-columns">
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <RankingTable
               title="Ranking de unidades por volume"
               description="Top 10 de unidades com maior pressao de chamados."
@@ -584,9 +578,6 @@ export default function DashboardPage() {
                 </>
               )}
             />
-          </section>
-
-          <section className="dashboard-columns">
             <RankingTable
               title="Ranking de unidades por bicos parados"
               description="Top 10 de impacto operacional em abastecimento."
@@ -599,6 +590,9 @@ export default function DashboardPage() {
                 </>
               )}
             />
+          </section>
+
+          <section className="w-full">
 
             <article className="panel panel--stack">
               <div>

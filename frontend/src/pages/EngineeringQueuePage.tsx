@@ -80,7 +80,7 @@ export default function EngineeringQueuePage() {
   useEffect(() => {
     if (!token || !canAccessPage) return;
 
-    void listUnits(token, { page: 1, page_size: 100, sort: "name_asc" })
+    void listUnits(token, { page: 1, page_size: 100 })
       .then((response) => setUnits(response.items))
       .catch(() => setUnits([]));
   }, [canAccessPage, token]);

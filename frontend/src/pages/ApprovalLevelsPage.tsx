@@ -9,7 +9,6 @@ import FilterBar from "../components/ui/FilterBar";
 import Input from "../components/ui/Input";
 import LoadingState from "../components/ui/LoadingState";
 import Modal from "../components/ui/Modal";
-import PageHeader from "../components/ui/PageHeader";
 import Pagination from "../components/ui/Pagination";
 import Select from "../components/ui/Select";
 import { ROLE_LABELS } from "../components/ui/statusOptions";
@@ -21,10 +20,9 @@ import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
 
 const initialFilters: ApprovalLevelFilters = {
   page: 1,
-  page_size: 10,
+  page_size: 20,
   search: "",
   is_active: "",
-  sort: "name_asc",
 };
 
 const initialForm: ApprovalLevelPayload = {
@@ -159,29 +157,19 @@ export default function ApprovalLevelsPage() {
 
   if (!isAdmin) {
     return (
-      <section className="page">
-        <PageHeader
-          eyebrow="Administracao"
-          title="Acesso indisponivel"
-          description="A configuracao de alcadas fica disponivel apenas para admin."
-        />
+      <section className="space-y-6">
         <ErrorState description="Seu perfil nao pode acessar as alcadas." />
       </section>
     );
   }
 
   return (
-    <section className="page">
-      <PageHeader
-        eyebrow="Administracao"
-        title="Alcadas"
-        description="Faixas de aprovacao por valor com perfis autorizados e controle de status."
-        actions={
-          <Button variant="primary" type="button" onClick={openCreateModal}>
-            Nova alcada
-          </Button>
-        }
-      />
+    <section className="space-y-6">
+      <div className="flex justify-end">
+        <Button variant="primary" type="button" onClick={openCreateModal}>
+          Nova alcada
+        </Button>
+      </div>
 
       <section className="panel">
         <FilterBar columns={2}>

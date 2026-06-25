@@ -30,20 +30,29 @@ export {
 
 export const TRIAGE_ALLOWED_STATUSES: TicketStatus[] = ["open", "triage", "waiting_unit"];
 
+const toneToClass: Record<string, string> = {
+  info: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800",
+  success: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800",
+  warning: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800",
+  danger: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800",
+  neutral: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700",
+  accent: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-800",
+};
+
 export function statusClass(status: TicketStatus) {
-  return `ui-badge ui-badge--${ticketStatusTone(status)}`;
+  return toneToClass[ticketStatusTone(status)] ?? toneToClass.neutral;
 }
 
 export function approvalStatusClass(status: keyof typeof APPROVAL_STATUS_LABELS) {
-  return `ui-badge ui-badge--${approvalStatusTone(status)}`;
+  return toneToClass[approvalStatusTone(status)] ?? toneToClass.neutral;
 }
 
 export function priorityClass(priority: keyof typeof PRIORITY_LABELS) {
-  return `ui-badge ui-badge--${priorityTone(priority)}`;
+  return toneToClass[priorityTone(priority)] ?? toneToClass.neutral;
 }
 
 export function severityClass(severity: keyof typeof SEVERITY_LABELS) {
-  return `ui-badge ui-badge--${severityTone(severity)}`;
+  return toneToClass[severityTone(severity)] ?? toneToClass.neutral;
 }
 
 export function isSlaLate(ticket: Pick<Ticket | TicketDetail, "sla_due_at" | "status">) {

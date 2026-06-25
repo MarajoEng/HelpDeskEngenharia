@@ -69,9 +69,9 @@ export interface SlaReportItem {
   late: number;
   closed_on_time: number;
   closed_late: number;
-  compliance_rate: number;
-  average_resolution_hours: number;
-  average_closure_hours: number;
+  compliance_rate: number | null;
+  average_resolution_hours: number | null;
+  average_closure_hours: number | null;
 }
 
 export interface UnitReportItem {
@@ -97,6 +97,6 @@ export interface SupplierReportItem {
   resolved_tickets: number;
   closed_tickets: number;
   final_cost_total: string;
-  average_execution_hours: number;
+  average_execution_hours: number | null;
   late_execution_tickets: number;
 }

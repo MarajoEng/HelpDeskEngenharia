@@ -9,7 +9,6 @@ import FilterBar from "../components/ui/FilterBar";
 import Input from "../components/ui/Input";
 import LoadingState from "../components/ui/LoadingState";
 import Modal from "../components/ui/Modal";
-import PageHeader from "../components/ui/PageHeader";
 import Pagination from "../components/ui/Pagination";
 import Select from "../components/ui/Select";
 import Table from "../components/ui/Table";
@@ -24,7 +23,6 @@ const initialFilters: UnitFilters = {
   is_active: "",
   state: "",
   region: "",
-  sort: "name_asc",
 };
 
 const initialForm: UnitPayload = {
@@ -130,19 +128,14 @@ export default function UnitsPage() {
   const canManage = user?.role === "admin";
 
   return (
-    <section className="page">
-      <PageHeader
-        eyebrow="Cadastro base"
-        title="Unidades"
-        description="Cadastro administrativo com filtros, controle de ativacao e edicao segura."
-        actions={
-          canManage ? (
-            <Button variant="primary" type="button" onClick={openCreateModal}>
-              Nova unidade
-            </Button>
-          ) : null
-        }
-      />
+    <section className="space-y-6">
+      {canManage ? (
+        <div className="flex justify-end">
+          <Button variant="primary" type="button" onClick={openCreateModal}>
+            Nova unidade
+          </Button>
+        </div>
+      ) : null}
 
       <section className="panel">
         <FilterBar columns={4}>

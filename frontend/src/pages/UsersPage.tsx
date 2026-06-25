@@ -10,7 +10,6 @@ import FilterBar from "../components/ui/FilterBar";
 import Input from "../components/ui/Input";
 import LoadingState from "../components/ui/LoadingState";
 import Modal from "../components/ui/Modal";
-import PageHeader from "../components/ui/PageHeader";
 import Pagination from "../components/ui/Pagination";
 import Select from "../components/ui/Select";
 import { ROLE_LABELS } from "../components/ui/statusOptions";
@@ -28,7 +27,6 @@ const initialFilters: UserFilters = {
   role: "",
   unit_id: "",
   is_active: "",
-  sort: "name_asc",
 };
 
 const initialForm: UserPayload = {
@@ -66,7 +64,7 @@ export default function UsersPage() {
       return;
     }
 
-    void listUnits(token, { page: 1, page_size: 100, sort: "name_asc" })
+    void listUnits(token, { page: 1, page_size: 100 })
       .then((response) => setUnits(response.items))
       .catch(() => setUnits([]));
   }, [token]);
@@ -160,17 +158,12 @@ export default function UsersPage() {
   }
 
   return (
-    <section className="page">
-      <PageHeader
-        eyebrow="Administracao"
-        title="Usuarios"
-        description="Gestao de perfis, vinculo de unidade e ativacao com feedback operacional claro."
-        actions={
-          <Button variant="primary" type="button" onClick={openCreateModal}>
-            Novo usuario
-          </Button>
-        }
-      />
+    <section className="space-y-6">
+      <div className="flex justify-end">
+        <Button variant="primary" type="button" onClick={openCreateModal}>
+          Novo usuario
+        </Button>
+      </div>
 
       <section className="panel">
         <FilterBar columns={4}>

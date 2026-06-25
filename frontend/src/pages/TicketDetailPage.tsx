@@ -74,7 +74,7 @@ function HistoryTimeline({ history }: { history: TicketHistory[] }) {
   }
 
   return (
-    <div style={{ display: "grid", gap: "12px" }}>
+    <div style={{ display: "grid", gap: "12px", maxHeight: "400px", overflowY: "auto", paddingRight: "8px" }}>
       {history.map((entry, index) => (
         <div
           key={entry.id}
@@ -593,17 +593,19 @@ export default function TicketDetailPage() {
           </dl>
         </div>
 
-        <article className="info-card">
-          <h2>Descricao</h2>
-          <p>{ticket.description}</p>
-        </article>
-
-        {ticket.operational_impact ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <article className="info-card">
-            <h2>Impacto operacional</h2>
-            <p>{ticket.operational_impact}</p>
+            <h2>Descricao</h2>
+            <p>{ticket.description}</p>
           </article>
-        ) : null}
+
+          {ticket.operational_impact ? (
+            <article className="info-card">
+              <h2>Impacto operacional</h2>
+              <p>{ticket.operational_impact}</p>
+            </article>
+          ) : null}
+        </div>
 
         {token ? (
           <EvidenceSection

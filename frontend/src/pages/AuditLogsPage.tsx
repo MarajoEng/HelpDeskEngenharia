@@ -8,7 +8,6 @@ import ErrorState from "../components/ui/ErrorState";
 import FilterBar from "../components/ui/FilterBar";
 import Input from "../components/ui/Input";
 import LoadingState from "../components/ui/LoadingState";
-import PageHeader from "../components/ui/PageHeader";
 import Pagination from "../components/ui/Pagination";
 import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
@@ -63,12 +62,7 @@ export default function AuditLogsPage() {
 
   if (user?.role !== "admin") {
     return (
-      <section className="page">
-        <PageHeader
-          eyebrow="Acesso restrito"
-          title="Sem permissao"
-          description="Apenas administradores podem acessar o log de auditoria."
-        />
+      <section className="space-y-6">
         <ErrorState description="Seu perfil nao pode visualizar a auditoria do sistema." />
       </section>
     );
@@ -117,12 +111,7 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <section className="page">
-      <PageHeader
-        eyebrow="Administracao"
-        title="Log de auditoria"
-        description={`Registro de acoes realizadas no sistema. Total: ${total} evento(s).`}
-      />
+    <section className="space-y-6">
 
       <section className="panel panel--stack">
         <FilterBar columns={4}>

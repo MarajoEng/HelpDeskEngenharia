@@ -1,7 +1,5 @@
 import type { InputHTMLAttributes, ReactNode } from "react";
 
-import { cx } from "./cx";
-
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: ReactNode;
   hint?: ReactNode;
@@ -14,23 +12,40 @@ export default function Input({
   label,
   hint,
   error,
-  className,
-  containerClassName,
+  className = "",
+  containerClassName = "",
   required,
   requiredLabel = true,
+  id,
   ...props
 }: InputProps) {
+  const inputId = id ?? (typeof label === "string" ? `input-${label.toLowerCase().replace(/\s+/g, "-")}` : undefined);
+
   return (
-    <label className={cx("ui-field", containerClassName)}>
+    <div className={["flex flex-col gap-1", containerClassName].filter(Boolean).join(" ")}>
       {label ? (
-        <span className="ui-field__label">
+        <label htmlFor={inputId} className="block text-sm font-medium text-slate-700">
           {label}
-          {required && requiredLabel ? <strong aria-hidden="true"> *</strong> : null}
-        </span>
+          {required && requiredLabel ? <strong aria-hidden="true" className="text-red-500 ml-0.5"> *</strong> : null}
+        </label>
       ) : null}
-      <input className={cx("ui-input", className)} required={required} {...props} />
-      {hint ? <small className="ui-field__hint">{hint}</small> : null}
-      {error ? <small className="ui-field__error">{error}</small> : null}
-    </label>
+      <input
+        id={inputId}
+        className={[
+          "block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900",
+          "placeholder-slate-400 bg-white",
+          "focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500",
+          "disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed",
+          error ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        required={required}
+        {...props}
+      />
+      {hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
+      {error ? <p className="text-xs text-red-600 font-medium">{error}</p> : null}
+    </div>
   );
 }

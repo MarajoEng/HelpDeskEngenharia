@@ -41,7 +41,7 @@ export default function ConfirmDialog({
         </>
       }
     >
-      <div className="ui-confirm-copy">
+      <div className="p-4 rounded-lg bg-slate-50 text-sm text-slate-600">
         Esta acao altera o estado atual do fluxo. Confirme apenas se as informacoes ja foram validadas.
       </div>
     </Modal>

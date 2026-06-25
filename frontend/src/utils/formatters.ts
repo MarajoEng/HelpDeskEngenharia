@@ -30,6 +30,28 @@ export function formatMoney(value: string | number | null | undefined) {
     : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(parsed);
 }
 
+export function toNumberSafe(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return isFinite(n) ? n : fallback;
+}
+
+export function formatMoneySafe(value: unknown): string {
+  const n = toNumberSafe(value);
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export function formatNumberSafe(value: unknown, decimals = 2): string {
+  if (value === null || value === undefined) return "0";
+  const n = toNumberSafe(value);
+  return Number(n).toFixed(decimals);
+}
+
+export function formatPercentSafe(value: unknown, decimals = 1): string {
+  if (value === null || value === undefined) return "0%";
+  const n = toNumberSafe(value);
+  return `${Number(n).toFixed(decimals)}%`;
+}
+
 export function formatDateTimeLocalInput(value: string | null | undefined) {
   if (!value) return "";
 

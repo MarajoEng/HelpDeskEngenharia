@@ -1,7 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
-import { cx } from "./cx";
-
 interface CardProps extends HTMLAttributes<HTMLElement> {
   as?: "article" | "section" | "div";
   children: ReactNode;
@@ -11,14 +9,20 @@ interface CardProps extends HTMLAttributes<HTMLElement> {
 export default function Card({
   as = "section",
   children,
-  className,
+  className = "",
   stacked = false,
   ...props
 }: CardProps) {
   const Component = as;
   return (
     <Component
-      className={cx("ui-card", stacked && "ui-card--stacked", className)}
+      className={[
+        "bg-white rounded-xl border border-slate-200 shadow-sm p-6",
+        stacked ? "flex flex-col gap-6" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       {...props}
     >
       {children}

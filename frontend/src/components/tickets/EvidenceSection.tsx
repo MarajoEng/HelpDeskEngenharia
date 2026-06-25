@@ -169,7 +169,7 @@ export default function EvidenceSection({ ticketId, token, initialAttachments, c
       ) : null}
 
       {!isLoading && attachments.length > 0 ? (
-        <div className="evidence-grid">
+        <div className="evidence-grid" style={{ maxHeight: "400px", overflowY: "auto", paddingRight: "8px" }}>
           {attachments.map((attachment) => (
             <article className="evidence-card" key={attachment.id}>
               <div className="evidence-card__header">

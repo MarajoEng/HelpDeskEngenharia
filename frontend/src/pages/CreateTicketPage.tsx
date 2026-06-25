@@ -124,7 +124,6 @@ export default function CreateTicketPage() {
           page: 1,
           page_size: 100,
           is_active: true,
-          sort: "name_asc",
         });
         if (!isActive) {
           return;

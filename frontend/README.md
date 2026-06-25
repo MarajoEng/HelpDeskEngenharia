@@ -56,6 +56,12 @@ npm install
 npm run dev
 ```
 
+Fluxo local esperado:
+
+- backend em `http://127.0.0.1:8000`
+- frontend em `http://127.0.0.1:5173`
+- login demo: `admin@local.test` / `admin123`
+
 ## Build
 
 ```bash
@@ -95,13 +101,28 @@ npm run build
 ## Testes
 
 - Validacao automatica disponivel nesta fase: `npm run build`
-- Nao ha suite de testes frontend dedicada configurada no projeto ate este ponto.
+- Suite E2E minima disponivel em `frontend/e2e/login.spec.ts`
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run e2e
+```
+
+Observacoes de E2E:
+
+- O teste usa Playwright com Chrome do sistema quando disponivel.
+- O backend precisa estar ativo em `http://127.0.0.1:8000`.
+- Se o navegador nao estiver instalado no ambiente, rode `npx playwright install chromium` ou ajuste o canal do browser.
 
 ## Testar login
 
-1. Rode o backend com as variaveis de ambiente configuradas.
-2. Crie o admin dev com `python scripts/create_admin.py` dentro de `backend/`.
-3. Abra o frontend e entre com `admin@local.test` / `admin123`.
+1. Rode o backend com `alembic upgrade head`, `python scripts/seed_demo.py` e `uvicorn app.main:app --reload`.
+2. Rode o frontend com `npm install` e `npm run dev`.
+3. Abra `http://127.0.0.1:5173/login`.
+4. Entre com `admin@local.test` / `admin123`.
+5. Confirme o redirecionamento para `/dashboard`.
 
 ## Testar cadastros e chamados
 

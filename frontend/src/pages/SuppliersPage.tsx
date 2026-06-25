@@ -9,7 +9,6 @@ import FilterBar from "../components/ui/FilterBar";
 import Input from "../components/ui/Input";
 import LoadingState from "../components/ui/LoadingState";
 import Modal from "../components/ui/Modal";
-import PageHeader from "../components/ui/PageHeader";
 import Pagination from "../components/ui/Pagination";
 import Select from "../components/ui/Select";
 import Table from "../components/ui/Table";
@@ -201,19 +200,14 @@ export default function SuppliersPage() {
   }
 
   return (
-    <section className="page">
-      <PageHeader
-        eyebrow="Cadastro"
-        title="Fornecedores"
-        description={`${total} fornecedor${total !== 1 ? "es" : ""} encontrado${total !== 1 ? "s" : ""}`}
-        actions={
-          isAdmin ? (
-            <Button variant="primary" type="button" onClick={openCreate}>
-              Novo fornecedor
-            </Button>
-          ) : null
-        }
-      />
+    <section className="space-y-6">
+      {isAdmin ? (
+        <div className="flex justify-end">
+          <Button variant="primary" type="button" onClick={openCreate}>
+            Novo fornecedor
+          </Button>
+        </div>
+      ) : null}
 
       <section className="panel panel--stack">
         <FilterBar columns={2}>

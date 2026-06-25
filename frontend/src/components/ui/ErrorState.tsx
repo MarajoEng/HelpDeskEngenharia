@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
 import Button from "./Button";
-import Card from "./Card";
 
 interface ErrorStateProps {
   title?: string;
@@ -17,15 +16,24 @@ export default function ErrorState({
   onRetry,
 }: ErrorStateProps) {
   return (
-    <Card className="ui-state ui-state--error">
-      <div className="ui-state__icon" aria-hidden="true">
+    <div className="flex items-start gap-3 p-4 rounded-xl border border-red-200 bg-red-50">
+      <div
+        className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-600 font-bold text-sm flex-shrink-0"
+        aria-hidden="true"
+      >
         !
       </div>
-      <div className="ui-state__content">
-        <h3>{title}</h3>
-        <p>{description}</p>
-        {onRetry ? <Button onClick={onRetry}>{actionLabel}</Button> : null}
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold text-red-900">{title}</h3>
+        <p className="text-sm text-red-700 mt-0.5">{description}</p>
+        {onRetry ? (
+          <div className="mt-3">
+            <Button variant="danger" size="sm" onClick={onRetry}>
+              {actionLabel}
+            </Button>
+          </div>
+        ) : null}
       </div>
-    </Card>
+    </div>
   );
 }

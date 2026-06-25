@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import { cx } from "./cx";
-
 interface PageHeaderProps {
   eyebrow?: string;
   title: ReactNode;
@@ -15,16 +13,18 @@ export default function PageHeader({
   title,
   description,
   actions,
-  className,
+  className = "",
 }: PageHeaderProps) {
   return (
-    <div className={cx("ui-page-header", className)}>
-      <div className="ui-page-header__copy">
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h2 className="page__title">{title}</h2>
-        {description ? <p className="page__description">{description}</p> : null}
+    <div className={["flex items-start justify-between gap-4", className].filter(Boolean).join(" ")}>
+      <div>
+        {eyebrow ? (
+          <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-1">{eyebrow}</p>
+        ) : null}
+        <h2 className="text-2xl font-bold text-slate-900 leading-tight">{title}</h2>
+        {description ? <p className="text-sm text-slate-500 mt-1">{description}</p> : null}
       </div>
-      {actions ? <div className="ui-page-header__actions">{actions}</div> : null}
+      {actions ? <div className="flex items-center gap-3 flex-shrink-0">{actions}</div> : null}
     </div>
   );
 }
