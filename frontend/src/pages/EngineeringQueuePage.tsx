@@ -350,7 +350,11 @@ export default function EngineeringQueuePage() {
                       <td>
                         <span className="text-mono text-sm">{ticket.ticket_number}</span>
                       </td>
-                      <td>{[ticket.unit_code, ticket.unit_name].filter(Boolean).join(" · ") || `#${ticket.unit_id}`}</td>
+                      <td style={{ maxWidth: "220px" }}>
+                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {[ticket.unit_code, ticket.unit_name].filter(Boolean).join(" · ") || `#${ticket.unit_id}`}
+                        </span>
+                      </td>
                       <td style={{ maxWidth: "260px" }}>
                         <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {ticket.title}
@@ -365,7 +369,11 @@ export default function EngineeringQueuePage() {
                       <td>
                         <SeverityBadge severity={ticket.severity} />
                       </td>
-                      <td>{ticket.assigned_to_user_name ?? "Nao atribuido"}</td>
+                      <td style={{ maxWidth: "180px" }}>
+                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {ticket.assigned_to_user_name ?? "Nao atribuido"}
+                        </span>
+                      </td>
                       <td>
                         {ticket.sla_due_at ? (
                           <span className={late ? "text-danger" : "text-muted"}>

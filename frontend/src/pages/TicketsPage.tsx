@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import {
+  listTicketCategories,
+  listTicketPriorities,
+  listTicketTypes,
+} from "../api/ticketConfigurationApi";
 import { listTickets } from "../api/ticketApi";
 import { listUnits } from "../api/unitApi";
 import Button from "../components/ui/Button";
@@ -15,19 +20,20 @@ import SeverityBadge from "../components/ui/SeverityBadge";
 import StatusBadge from "../components/ui/StatusBadge";
 import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
-import type { Ticket, TicketCategory, TicketFilters, TicketPriority, TicketSeverity, TicketStatus } from "../types/ticket";
+import type { Ticket, TicketFilters, TicketSeverity, TicketStatus } from "../types/ticket";
+import type { TicketCategoryItem, TicketPriorityItem, TicketTypeItem } from "../types/ticketConfiguration";
 import type { Unit } from "../types/unit";
 import { formatDate, formatMoney } from "../utils/formatters";
 import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
-import { CATEGORY_LABELS, PRIORITY_LABELS, SEVERITY_LABELS, STATUS_LABELS } from "../components/ui/statusOptions";
 
 const initialFilters: TicketFilters = {
   page: 1,
   page_size: 20,
   unit_id: "",
   status: "",
-  category: "",
-  priority: "",
+  category_id: "",
+  type_id: "",
+  priority_id: "",
   severity: "",
   requires_approval: "",
   search: "",
@@ -49,18 +55,6 @@ const statusOptions: Array<{ value: TicketStatus; label: string }> = [
   { value: "resolved", label: "Resolvido" },
   { value: "closed", label: "Encerrado" },
   { value: "canceled", label: "Cancelado" },
-];
-
-const categoryOptions: Array<{ value: TicketCategory; label: string }> = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
-  value: value as TicketCategory,
-  label,
-}));
-
-const priorityOptions: Array<{ value: TicketPriority; label: string }> = [
-  { value: "low", label: "Baixa" },
-  { value: "medium", label: "Media" },
-  { value: "high", label: "Alta" },
-  { value: "critical", label: "Critica" },
 ];
 
 const severityOptions: Array<{ value: TicketSeverity; label: string }> = [
@@ -89,6 +83,9 @@ function isSlaLate(ticket: Ticket) {
 export default function TicketsPage() {
   const { token, user } = useAuth();
   const [filters, setFilters] = useState<TicketFilters>(initialFilters);
+  const [categories, setCategories] = useState<TicketCategoryItem[]>([]);
+  const [ticketTypes, setTicketTypes] = useState<TicketTypeItem[]>([]);
+  const [priorities, setPriorities] = useState<TicketPriorityItem[]>([]);
   const [data, setData] = useState<{ items: Ticket[]; total: number; page: number; page_size: number; pages: number }>({
     items: [],
     total: 0,
@@ -98,10 +95,53 @@ export default function TicketsPage() {
   });
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingFilterOptions, setIsLoadingFilterOptions] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null);
+  const [filterOptionsReloadKey, setFilterOptionsReloadKey] = useState(0);
 
   const isSupplier = user?.role === "supplier";
   const canFilterByUnit = user?.role !== "manager";
+
+  useEffect(() => {
+    let isActive = true;
+    setIsLoadingFilterOptions(true);
+    setFilterOptionsError(null);
+
+    Promise.all([
+      listTicketCategories({ page: 1, page_size: 100, sort: "display_order_asc" }),
+      listTicketTypes({ page: 1, page_size: 100, sort: "display_order_asc" }),
+      listTicketPriorities({ page: 1, page_size: 100, sort: "display_order_asc" }),
+    ])
+      .then(([categoriesResponse, typesResponse, prioritiesResponse]) => {
+        if (!isActive) {
+          return;
+        }
+
+        setCategories(categoriesResponse.items);
+        setTicketTypes(typesResponse.items);
+        setPriorities(prioritiesResponse.items);
+      })
+      .catch((error: unknown) => {
+        if (!isActive) {
+          return;
+        }
+
+        setCategories([]);
+        setTicketTypes([]);
+        setPriorities([]);
+        setFilterOptionsError(getErrorMessage(error, "Nao foi possivel carregar os filtros configuraveis."));
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoadingFilterOptions(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [filterOptionsReloadKey]);
 
   useEffect(() => {
     if (!token || !canFilterByUnit) return;
@@ -137,14 +177,15 @@ export default function TicketsPage() {
       isActive = false;
     };
   }, [
-    filters.category,
+    filters.category_id,
     filters.page,
     filters.page_size,
-    filters.priority,
+    filters.priority_id,
     filters.requires_approval,
     filters.search,
     filters.severity,
     filters.status,
+    filters.type_id,
     filters.unit_id,
     filters.only_late,
     filters.has_fuel_nozzles_stopped,
@@ -162,6 +203,31 @@ export default function TicketsPage() {
     setFilters(initialFilters);
   }
 
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === filters.category_id) || null,
+    [categories, filters.category_id],
+  );
+
+  const availableTypeOptions = useMemo(() => {
+    if (!selectedCategory || selectedCategory.type_ids.length === 0) {
+      return ticketTypes;
+    }
+
+    return ticketTypes.filter((ticketType) => selectedCategory.type_ids.includes(ticketType.id));
+  }, [selectedCategory, ticketTypes]);
+
+  useEffect(() => {
+    if (!filters.type_id) {
+      return;
+    }
+
+    if (availableTypeOptions.some((ticketType) => ticketType.id === filters.type_id)) {
+      return;
+    }
+
+    setFilters((current) => ({ ...current, type_id: "" }));
+  }, [availableTypeOptions, filters.type_id]);
+
   if (isSupplier) {
     return (
       <div className="space-y-6">
@@ -177,22 +243,31 @@ export default function TicketsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <PageHeader
-          eyebrow="Operacao"
-          title="Chamados"
-          description="Listagem com filtros, prioridade operacional, SLA e acesso rapido ao detalhe."
-        />
-        <Link
-          to="/tickets/new"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm transition-colors flex-shrink-0"
-        >
-          + Abrir chamado
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Operacao"
+        title="Chamados"
+        description="Listagem com filtros, prioridade operacional, SLA e acesso rapido ao detalhe."
+        actions={
+          <Link
+            to="/tickets/new"
+            className="inline-flex max-w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700"
+          >
+            Novo chamado
+          </Link>
+        }
+      />
 
       {/* Filters card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        {filterOptionsError ? (
+          <div className="mb-4">
+            <ErrorState
+              description={filterOptionsError}
+              onRetry={() => setFilterOptionsReloadKey((current) => current + 1)}
+            />
+          </div>
+        ) : null}
+
         <FilterBar columns={6} dense={true}>
           <div className="flex flex-col gap-1">
             <label htmlFor="search-filter" className="block text-sm font-medium text-slate-700">Busca</label>
@@ -246,12 +321,37 @@ export default function TicketsPage() {
             <select
               id="category-filter"
               className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              value={filters.category || ""}
-              onChange={(e) => setFilter("category", (e.target.value as TicketCategory | "") || "")}
+              value={String(filters.category_id ?? "")}
+              onChange={(e) =>
+                setFilters((current) => ({
+                  ...current,
+                  page: 1,
+                  category_id: e.target.value === "" ? "" : Number(e.target.value),
+                  type_id: "",
+                }))
+              }
             >
-              <option value="">Todas</option>
-              {categoryOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+              <option value="">{isLoadingFilterOptions ? "Carregando..." : "Todas"}</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="type-filter" className="block text-sm font-medium text-slate-700">Tipo</label>
+            <select
+              id="type-filter"
+              className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              value={String(filters.type_id ?? "")}
+              onChange={(e) => setFilter("type_id", e.target.value === "" ? "" : Number(e.target.value))}
+              disabled={isLoadingFilterOptions || availableTypeOptions.length === 0}
+            >
+              <option value="">
+                {isLoadingFilterOptions ? "Carregando..." : availableTypeOptions.length === 0 ? "Sem tipos ativos" : "Todos"}
+              </option>
+              {availableTypeOptions.map((ticketType) => (
+                <option key={ticketType.id} value={ticketType.id}>{ticketType.name}</option>
               ))}
             </select>
           </div>
@@ -261,12 +361,12 @@ export default function TicketsPage() {
             <select
               id="priority-filter"
               className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              value={filters.priority || ""}
-              onChange={(e) => setFilter("priority", (e.target.value as TicketPriority | "") || "")}
+              value={String(filters.priority_id ?? "")}
+              onChange={(e) => setFilter("priority_id", e.target.value === "" ? "" : Number(e.target.value))}
             >
-              <option value="">Todas</option>
-              {priorityOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+              <option value="">{isLoadingFilterOptions ? "Carregando..." : "Todas"}</option>
+              {priorities.map((priority) => (
+                <option key={priority.id} value={priority.id}>{priority.name}</option>
               ))}
             </select>
           </div>
@@ -336,7 +436,7 @@ export default function TicketsPage() {
             <span>Com bicos parados</span>
           </label>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 max-sm:ml-0 max-sm:w-full">
             <Button type="button" variant="secondary" size="sm" onClick={clearFilters}>
               Limpar filtros
             </Button>
@@ -367,7 +467,7 @@ export default function TicketsPage() {
                 to="/tickets/new"
                 className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm transition-colors"
               >
-                Abrir um novo chamado
+                Novo chamado
               </Link>
             }
           />
@@ -375,8 +475,7 @@ export default function TicketsPage() {
 
         {!isLoading && !errorMessage && data.items.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200" style={{ minWidth: 1240 }}>
+            <Table minWidth={1180}>
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Chamado</th>
@@ -403,9 +502,11 @@ export default function TicketsPage() {
                         <td className="px-4 py-3 text-sm">
                           <span className="font-mono text-slate-900 text-xs">{ticket.ticket_number}</span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{unitLabel(ticket, units)}</td>
-                        <td className="px-4 py-3 text-sm text-slate-500">
-                          {ticket.opened_by_user_name ?? `#${ticket.opened_by_user_id}`}
+                        <td className="px-4 py-3 text-sm text-slate-700 max-w-[220px]">
+                          <span className="block truncate">{unitLabel(ticket, units)}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-500 max-w-[180px]">
+                          <span className="block truncate">{ticket.opened_by_user_name ?? `#${ticket.opened_by_user_id}`}</span>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-900 max-w-[200px]">
                           <span className="block truncate">{ticket.title}</span>
@@ -461,8 +562,7 @@ export default function TicketsPage() {
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+            </Table>
 
             <div className="px-6 py-4 border-t border-slate-200">
               <Pagination

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
 from app.schemas.attachment import TicketAttachmentResponse
@@ -12,19 +12,40 @@ from app.schemas.approval import ApprovalResponse
 from app.schemas.pagination import PaginatedResponse, PageParams
 
 
+class TicketCustomFieldSubmission(BaseModel):
+    field_id: int = Field(ge=1)
+    value: Any = None
+
+
+class TicketCustomFieldValueResponse(BaseModel):
+    id: int
+    custom_field_id: int
+    name: str
+    label: str
+    field_type: Literal["text", "textarea", "number", "boolean", "select", "date"]
+    value: Any = None
+    display_value: str | None = None
+    is_active: bool
+
+
 class TicketCreate(BaseModel):
     unit_id: int = Field(ge=1)
-    category: TicketCategory
+    category_id: int | None = Field(default=None, ge=1)
+    subcategory_id: int | None = Field(default=None, ge=1)
+    type_id: int | None = Field(default=None, ge=1)
+    priority_id: int | None = Field(default=None, ge=1)
+    category: TicketCategory | None = None
     problem_type: str = Field(min_length=1, max_length=255)
     title: str = Field(min_length=1, max_length=255)
     description: str = Field(min_length=1)
-    priority: PriorityLevel
+    priority: PriorityLevel | None = None
     severity: TicketSeverity
     operational_impact: str | None = None
     fuel_nozzles_stopped: int | None = Field(default=None, ge=0)
     estimated_daily_loss: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     estimated_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     requires_approval: bool = False
+    custom_fields: list[TicketCustomFieldSubmission] | dict[str, Any] = Field(default_factory=list)
 
     @field_validator("problem_type", "title", "description")
     @classmethod
@@ -41,6 +62,14 @@ class TicketCreate(BaseModel):
             return value
         normalized = value.strip()
         return normalized or None
+
+    @model_validator(mode="after")
+    def validate_legacy_or_configured_fields(self) -> "TicketCreate":
+        if self.category_id is None and self.category is None:
+            raise ValueError("Either category_id or category must be provided.")
+        if self.priority_id is None and self.priority is None:
+            raise ValueError("Either priority_id or priority must be provided.")
+        return self
 
 
 class TicketUnitSummary(BaseModel):
@@ -98,11 +127,21 @@ class TicketResponse(BaseModel):
     unit_id: int
     opened_by_user_id: int
     assigned_to_user_id: int | None
+    category_id: int | None = None
+    subcategory_id: int | None = None
+    type_id: int | None = None
+    priority_id: int | None = None
     category: TicketCategory
+    category_name: str | None = None
+    subcategory_name: str | None = None
+    type_name: str | None = None
     problem_type: str
     title: str
     description: str
     priority: PriorityLevel
+    priority_name: str | None = None
+    priority_color: str | None = None
+    priority_weight: int | None = None
     severity: TicketSeverity
     status: TicketStatus
     operational_impact: str | None
@@ -140,11 +179,21 @@ class TicketDetailResponse(BaseModel):
     unit_id: int
     opened_by_user_id: int
     assigned_to_user_id: int | None
+    category_id: int | None = None
+    subcategory_id: int | None = None
+    type_id: int | None = None
+    priority_id: int | None = None
     category: TicketCategory
+    category_name: str | None = None
+    subcategory_name: str | None = None
+    type_name: str | None = None
     problem_type: str
     title: str
     description: str
     priority: PriorityLevel
+    priority_name: str | None = None
+    priority_color: str | None = None
+    priority_weight: int | None = None
     severity: TicketSeverity
     status: TicketStatus
     operational_impact: str | None
@@ -173,6 +222,7 @@ class TicketDetailResponse(BaseModel):
     approvals: list[ApprovalResponse]
     attachments: list[TicketAttachmentResponse]
     indicators: TicketIndicators
+    custom_fields: list[TicketCustomFieldValueResponse] = Field(default_factory=list)
 
 
 class TicketListResponse(PaginatedResponse[TicketResponse]):
@@ -181,6 +231,10 @@ class TicketListResponse(PaginatedResponse[TicketResponse]):
 
 class TicketListParams(PageParams):
     unit_id: int | None = Field(default=None, ge=1)
+    category_id: int | None = Field(default=None, ge=1)
+    subcategory_id: int | None = Field(default=None, ge=1)
+    type_id: int | None = Field(default=None, ge=1)
+    priority_id: int | None = Field(default=None, ge=1)
     status: TicketStatus | None = None
     category: TicketCategory | None = None
     priority: PriorityLevel | None = None

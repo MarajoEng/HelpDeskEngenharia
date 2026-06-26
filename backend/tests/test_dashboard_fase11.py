@@ -9,6 +9,7 @@ import pytest
 
 from app.models.enums import TicketStatus, UserRole
 from app.models.ticket import Ticket
+from app.services.ticket_configuration_seed import seed_ticket_configurations
 
 
 def _create_ticket(
@@ -19,7 +20,9 @@ def _create_ticket(
     ticket_number: str,
     status: TicketStatus,
     category: str = "fuel_pump",
+    category_id: int | None = None,
     priority: str = "medium",
+    priority_id: int | None = None,
     severity: str = "medium",
     opened_at: datetime | None = None,
     sla_due_at: datetime | None = None,
@@ -37,11 +40,13 @@ def _create_ticket(
         unit_id=unit_id,
         opened_by_user_id=opened_by_user_id,
         assigned_to_user_id=None,
+        category_id=category_id,
         category=category,
         problem_type="Falha operacional",
         title=f"Chamado {ticket_number}",
         description="Descricao",
         priority=priority,
+        priority_id=priority_id,
         severity=severity,
         status=status,
         requires_approval=False,
@@ -196,6 +201,7 @@ def _seed_dashboard_dataset(db_session, create_unit, create_user):
         estimated_cost="50.00",
     )
     return {
+        "base_now": base_now,
         "unit_1": unit_1,
         "unit_2": unit_2,
         "admin": admin,
@@ -283,6 +289,14 @@ async def test_dashboard_filters_period_unit_region_status_and_category(
         f"/dashboard/overview?date_from={today}&date_to={today}",
         headers=auth_header_for_user(data["admin"]),
     )
+    expected_today_total = sum(
+        1
+        for opened_at in (
+            data["base_now"] - timedelta(hours=10),
+            data["base_now"] - timedelta(hours=12),
+        )
+        if opened_at.date().isoformat() == today
+    )
 
     assert unit_response.status_code == 200
     assert unit_response.json()["total_tickets"] == 4
@@ -294,7 +308,7 @@ async def test_dashboard_filters_period_unit_region_status_and_category(
     assert category_response.status_code == 200
     assert category_response.json()["total_tickets"] == 2
     assert period_response.status_code == 200
-    assert period_response.json()["total_tickets"] == 2
+    assert period_response.json()["total_tickets"] == expected_today_total
 
 
 @pytest.mark.anyio
@@ -365,6 +379,72 @@ async def test_dashboard_counts_distributions_rankings_and_costs(
     assert payload["ranking_units_by_cost"][0]["estimated_cost_total"] >= payload["ranking_units_by_cost"][1]["estimated_cost_total"]
     assert len(payload["ranking_units_by_fuel_nozzles"]) == 2
     assert payload["ranking_units_by_fuel_nozzles"][0]["total_fuel_nozzles_stopped"] >= payload["ranking_units_by_fuel_nozzles"][1]["total_fuel_nozzles_stopped"]
+
+
+@pytest.mark.anyio
+async def test_dashboard_groups_by_configured_category_and_priority_names(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    unit = create_unit(code="CFG-001", name="Unidade Configurada")
+    admin = create_user(role=UserRole.ADMIN, email="admin-dashboard-config@local.test")
+    category = next(item for item in seeded["categories"] if item.legacy_value == "fuel_pump")
+    priority = next(item for item in seeded["priorities"] if item.legacy_value == "high")
+
+    _create_ticket(
+        db_session,
+        unit_id=unit.id,
+        opened_by_user_id=admin.id,
+        ticket_number="CFG-DASH-001",
+        status=TicketStatus.OPEN,
+        category=category.legacy_value,
+        category_id=category.id,
+        priority=priority.legacy_value,
+        priority_id=priority.id,
+    )
+
+    response = await client.get("/dashboard/overview", headers=auth_header_for_user(admin))
+
+    assert response.status_code == 200
+    payload = response.json()
+    category_row = next(item for item in payload["tickets_by_category"] if item["category_id"] == category.id)
+    priority_row = next(item for item in payload["tickets_by_priority"] if item["priority_id"] == priority.id)
+    assert category_row["category_name"] == category.name
+    assert priority_row["priority_name"] == priority.name
+    assert priority_row["priority_color"] == priority.color
+    assert priority_row["priority_weight"] == priority.weight
+
+
+@pytest.mark.anyio
+async def test_dashboard_uses_legacy_fallback_when_category_id_is_missing(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    unit = create_unit(code="LEG-001", name="Unidade Legada")
+    admin = create_user(role=UserRole.ADMIN, email="admin-dashboard-legacy@local.test")
+    _create_ticket(
+        db_session,
+        unit_id=unit.id,
+        opened_by_user_id=admin.id,
+        ticket_number="LEG-DASH-001",
+        status=TicketStatus.OPEN,
+        category="roof",
+        priority="medium",
+    )
+
+    response = await client.get("/dashboard/overview", headers=auth_header_for_user(admin))
+
+    assert response.status_code == 200
+    category_row = next(item for item in response.json()["tickets_by_category"] if item["category"] == "roof")
+    assert category_row["category_id"] is None
+    assert category_row["category_name"] == "Roof"
 
 
 @pytest.mark.anyio

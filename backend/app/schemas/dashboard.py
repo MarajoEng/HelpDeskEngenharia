@@ -14,6 +14,8 @@ class DashboardOverviewParams(BaseModel):
     region: str | None = None
     status: TicketStatus | None = None
     category: TicketCategory | None = None
+    category_id: int | None = Field(default=None, ge=1)
+    priority_id: int | None = Field(default=None, ge=1)
 
     @field_validator("region")
     @classmethod
@@ -82,12 +84,18 @@ class TicketsByStatusItem(BaseModel):
 
 
 class TicketsByCategoryItem(BaseModel):
-    category: TicketCategory
+    category: TicketCategory | None = None
+    category_id: int | None = None
+    category_name: str
     total: int
 
 
 class TicketsByPriorityItem(BaseModel):
-    priority: PriorityLevel
+    priority: PriorityLevel | None = None
+    priority_id: int | None = None
+    priority_name: str
+    priority_color: str | None = None
+    priority_weight: int | None = None
     total: int
 
 
@@ -113,6 +121,10 @@ class LateTicketsPreviewItem(BaseModel):
     title: str
     status: TicketStatus
     priority: PriorityLevel
+    priority_id: int | None = None
+    priority_name: str | None = None
+    priority_color: str | None = None
+    priority_weight: int | None = None
     severity: TicketSeverity
     sla_due_at: datetime
     opened_at: datetime

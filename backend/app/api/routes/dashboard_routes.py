@@ -28,6 +28,8 @@ def _build_dashboard_params(
     region: str | None = Query(default=None),
     status_filter: TicketStatus | None = Query(default=None, alias="status"),
     category: TicketCategory | None = Query(default=None),
+    category_id: int | None = Query(default=None, ge=1),
+    priority_id: int | None = Query(default=None, ge=1),
 ) -> DashboardOverviewParams:
     return DashboardOverviewParams(
         date_from=date_from,
@@ -36,6 +38,8 @@ def _build_dashboard_params(
         region=region,
         status=status_filter,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
 
 

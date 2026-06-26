@@ -16,15 +16,24 @@ export default function PageHeader({
   className = "",
 }: PageHeaderProps) {
   return (
-    <div className={["flex items-start justify-between gap-4", className].filter(Boolean).join(" ")}>
-      <div>
+    <div
+      className={[
+        "flex min-w-0 flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="min-w-0">
         {eyebrow ? (
-          <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-1">{eyebrow}</p>
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#c9a24a]">{eyebrow}</p>
         ) : null}
-        <h2 className="text-2xl font-bold text-slate-900 leading-tight">{title}</h2>
-        {description ? <p className="text-sm text-slate-500 mt-1">{description}</p> : null}
+        <h2 className="text-[1.55rem] font-extrabold leading-tight tracking-tight text-slate-950 sm:text-[1.8rem]">{title}</h2>
+        {description ? <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-slate-500">{description}</p> : null}
       </div>
-      {actions ? <div className="flex items-center gap-3 flex-shrink-0">{actions}</div> : null}
+      {actions ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-shrink-0 sm:justify-end">{actions}</div>
+      ) : null}
     </div>
   );
 }

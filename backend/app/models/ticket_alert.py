@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin
+from app.models.enum_columns import enum_values
 from app.models.enums import AlertSeverity, AlertType
 
 
@@ -19,11 +20,11 @@ class TicketAlert(CreatedAtMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"), nullable=False)
     alert_type: Mapped[AlertType] = mapped_column(
-        Enum(AlertType, name="alert_type_enum", native_enum=False),
+        Enum(AlertType, name="alert_type_enum", native_enum=False, values_callable=enum_values),
         nullable=False,
     )
     severity: Mapped[AlertSeverity] = mapped_column(
-        Enum(AlertSeverity, name="alert_severity_enum", native_enum=False),
+        Enum(AlertSeverity, name="alert_severity_enum", native_enum=False, values_callable=enum_values),
         nullable=False,
     )
     message: Mapped[str] = mapped_column(Text, nullable=False)

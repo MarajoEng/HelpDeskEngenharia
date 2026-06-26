@@ -41,6 +41,33 @@ npm run build
 - Crie o admin dev com `python scripts/create_admin.py` em `backend/`.
 - Use `admin@local.test` e `admin123` apenas em desenvolvimento.
 
+## Login local ponta a ponta
+
+```bash
+cd backend
+source .venv/bin/activate
+alembic upgrade head
+python scripts/seed_demo.py
+uvicorn app.main:app --reload
+```
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+- Frontend local: `http://127.0.0.1:5173/login`
+- Backend local: `http://127.0.0.1:8000`
+- Credencial demo: `admin@local.test` / `admin123`
+
+Troubleshooting de CORS:
+
+- `CORS_ORIGINS` aceita lista separada por virgula ou JSON array.
+- Em desenvolvimento, mantenha `http://localhost:5173` e `http://127.0.0.1:5173`.
+- Em production, nao use `*`.
+- Se `POST /auth/login` responder `500`, valide primeiro se o backend consegue ler enums do PostgreSQL e se o seed demo foi aplicado.
+
 ## Permissoes desta fase
 
 - `admin`: gerencia unidades, usuarios e alcadas de aprovacao.

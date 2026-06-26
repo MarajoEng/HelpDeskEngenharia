@@ -14,6 +14,7 @@ from app.models.audit_log import AuditLog
 from app.models.enums import TicketStatus, UserRole
 from app.models.supplier import Supplier
 from app.models.ticket import Ticket
+from app.services.ticket_configuration_seed import seed_ticket_configurations
 
 
 def _create_supplier(
@@ -45,7 +46,11 @@ def _create_ticket(
     ticket_number: str,
     status: TicketStatus,
     category: str = "fuel_pump",
+    category_id: int | None = None,
+    subcategory_id: int | None = None,
+    type_id: int | None = None,
     priority: str = "medium",
+    priority_id: int | None = None,
     severity: str = "medium",
     supplier_id: int | None = None,
     opened_at: datetime | None = None,
@@ -66,11 +71,15 @@ def _create_ticket(
         unit_id=unit_id,
         opened_by_user_id=opened_by_user_id,
         assigned_to_user_id=None,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        type_id=type_id,
         category=category,
         problem_type="Falha operacional",
         title=f"Chamado {ticket_number}",
         description="Descricao do chamado",
         priority=priority,
+        priority_id=priority_id,
         severity=severity,
         status=status,
         supplier_id=supplier_id,
@@ -293,6 +302,79 @@ async def test_manager_scope_and_ticket_filters(
     assert unit_response.json()["total"] == 3
     assert period_response.status_code == 200
     assert period_response.json()["total"] == 2
+
+
+@pytest.mark.anyio
+async def test_ticket_report_returns_configured_names_and_filters_by_ids(
+    client: httpx.AsyncClient,
+    db_session: Session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    unit = create_unit(code="RC-001", name="Unidade Relatorio Config")
+    admin = create_user(role=UserRole.ADMIN, email="report-config-admin@test.com")
+    category = next(item for item in seeded["categories"] if item.legacy_value == "fuel_pump")
+    priority = next(item for item in seeded["priorities"] if item.legacy_value == "high")
+
+    _create_ticket(
+        db_session,
+        unit_id=unit.id,
+        opened_by_user_id=admin.id,
+        ticket_number="REP-CFG-001",
+        status=TicketStatus.OPEN,
+        category=category.legacy_value,
+        category_id=category.id,
+        priority=priority.legacy_value,
+        priority_id=priority.id,
+    )
+
+    response = await client.get(
+        f"/reports/tickets?category_id={category.id}&priority_id={priority.id}",
+        headers=auth_header_for_user(admin),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    item = payload["items"][0]
+    assert item["category_id"] == category.id
+    assert item["category_name"] == category.name
+    assert item["priority_id"] == priority.id
+    assert item["priority_name"] == priority.name
+    assert item["priority_color"] == priority.color
+    assert item["priority_weight"] == priority.weight
+
+
+@pytest.mark.anyio
+async def test_ticket_report_keeps_legacy_ticket_without_configured_ids(
+    client: httpx.AsyncClient,
+    db_session: Session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    unit = create_unit(code="RL-001", name="Unidade Relatorio Legado")
+    admin = create_user(role=UserRole.ADMIN, email="report-legacy-admin@test.com")
+    _create_ticket(
+        db_session,
+        unit_id=unit.id,
+        opened_by_user_id=admin.id,
+        ticket_number="REP-LEG-001",
+        status=TicketStatus.OPEN,
+        category="electrical",
+        priority="medium",
+    )
+
+    response = await client.get("/reports/tickets?category=electrical", headers=auth_header_for_user(admin))
+
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["category_id"] is None
+    assert item["priority_id"] is None
+    assert item["category_name"] == "Electrical"
+    assert item["priority_name"] == "Media"
 
 
 @pytest.mark.anyio

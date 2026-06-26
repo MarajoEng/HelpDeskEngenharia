@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Numeric, Stri
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+from app.models.enum_columns import enum_values
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
 
 
@@ -22,6 +23,10 @@ class Ticket(TimestampMixin, Base):
         Index("ix_tickets_requires_approval", "requires_approval"),
         Index("ix_tickets_supplier_id", "supplier_id"),
         Index("ix_tickets_expected_resolution_at", "expected_resolution_at"),
+        Index("ix_tickets_category_id", "category_id"),
+        Index("ix_tickets_subcategory_id", "subcategory_id"),
+        Index("ix_tickets_type_id", "type_id"),
+        Index("ix_tickets_priority_id", "priority_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -29,15 +34,29 @@ class Ticket(TimestampMixin, Base):
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"), nullable=False)
     opened_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     assigned_to_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_categories.id"))
+    subcategory_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_subcategories.id"))
+    type_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_types.id"))
+    priority_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_priorities.id"))
     category: Mapped[TicketCategory] = mapped_column(
-        Enum(TicketCategory, name="ticket_category", native_enum=False),
+        Enum(
+            TicketCategory,
+            name="ticket_category",
+            native_enum=False,
+            values_callable=enum_values,
+        ),
         nullable=False,
     )
     problem_type: Mapped[str] = mapped_column(String(255), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[PriorityLevel] = mapped_column(
-        Enum(PriorityLevel, name="priority_level", native_enum=False),
+        Enum(
+            PriorityLevel,
+            name="priority_level",
+            native_enum=False,
+            values_callable=enum_values,
+        ),
         nullable=False,
     )
     severity: Mapped[TicketSeverity] = mapped_column(
@@ -47,11 +66,17 @@ class Ticket(TimestampMixin, Base):
             native_enum=False,
             create_constraint=True,
             length=50,
+            values_callable=enum_values,
         ),
         nullable=False,
     )
     status: Mapped[TicketStatus] = mapped_column(
-        Enum(TicketStatus, name="ticket_status", native_enum=False),
+        Enum(
+            TicketStatus,
+            name="ticket_status",
+            native_enum=False,
+            values_callable=enum_values,
+        ),
         nullable=False,
         default=TicketStatus.OPEN,
         server_default=TicketStatus.OPEN.value,
@@ -92,11 +117,27 @@ class Ticket(TimestampMixin, Base):
         foreign_keys=[assigned_to_user_id],
     )
     supplier: Mapped["Supplier | None"] = relationship(back_populates="tickets")
+    configured_category: Mapped["TicketCategoryConfig | None"] = relationship(
+        foreign_keys=[category_id],
+    )
+    configured_subcategory: Mapped["TicketSubcategoryConfig | None"] = relationship(
+        foreign_keys=[subcategory_id],
+    )
+    configured_type: Mapped["TicketTypeConfig | None"] = relationship(
+        foreign_keys=[type_id],
+    )
+    configured_priority: Mapped["TicketPriorityConfig | None"] = relationship(
+        foreign_keys=[priority_id],
+    )
     history_entries: Mapped[list["TicketHistory"]] = relationship(
         back_populates="ticket",
         cascade="all, delete-orphan",
     )
     attachments: Mapped[list["TicketAttachment"]] = relationship(
+        back_populates="ticket",
+        cascade="all, delete-orphan",
+    )
+    custom_field_values: Mapped[list["TicketCustomFieldValue"]] = relationship(
         back_populates="ticket",
         cascade="all, delete-orphan",
     )

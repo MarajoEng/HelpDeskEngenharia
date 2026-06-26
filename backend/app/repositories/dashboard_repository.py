@@ -6,8 +6,10 @@ from sqlalchemy import Float, case, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select, Subquery
 
-from app.models.enums import TicketStatus
+from app.models.enums import PriorityLevel, TicketCategory, TicketStatus
 from app.models.ticket import Ticket
+from app.models.ticket_category import TicketCategoryConfig
+from app.models.ticket_priority import TicketPriorityConfig
 from app.models.unit import Unit
 
 _CURRENT_LATE_EXCLUDED_STATUSES = (
@@ -20,6 +22,34 @@ _FINAL_SLA_STATUSES = (
     TicketStatus.CLOSED,
     TicketStatus.CANCELED,
 )
+
+_CATEGORY_LABELS = {
+    TicketCategory.FUEL_PUMP: "Fuel Pump",
+    TicketCategory.FUEL_NOZZLE: "Fuel Nozzle",
+    TicketCategory.ELECTRICAL: "Electrical",
+    TicketCategory.PLUMBING: "Plumbing",
+    TicketCategory.LEAK: "Leak",
+    TicketCategory.STRUCTURE: "Structure",
+    TicketCategory.ROOF: "Roof",
+    TicketCategory.PAVEMENT: "Pavement",
+    TicketCategory.ENVIRONMENTAL_RISK: "Environmental Risk",
+    TicketCategory.OTHER: "Other",
+}
+
+_PRIORITY_LABELS = {
+    PriorityLevel.LOW: "Baixa",
+    PriorityLevel.MEDIUM: "Media",
+    PriorityLevel.HIGH: "Alta",
+    PriorityLevel.CRITICAL: "Critica",
+}
+
+
+def _legacy_category_name_expr(column):
+    return case(*((column == key, value) for key, value in _CATEGORY_LABELS.items()), else_=column)
+
+
+def _legacy_priority_name_expr(column):
+    return case(*((column == key, value) for key, value in _PRIORITY_LABELS.items()), else_=column)
 
 
 def _hours_diff_expr(session: Session, start_column, end_column):
@@ -38,6 +68,8 @@ def _build_filtered_ticket_subquery(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
 ) -> Subquery:
     statement: Select = (
         select(
@@ -49,8 +81,14 @@ def _build_filtered_ticket_subquery(
             Unit.region.label("region"),
             Ticket.title.label("title"),
             Ticket.status.label("status"),
+            Ticket.category_id.label("category_id"),
             Ticket.category.label("category"),
+            func.coalesce(TicketCategoryConfig.name, _legacy_category_name_expr(Ticket.category)).label("category_name"),
+            Ticket.priority_id.label("priority_id"),
             Ticket.priority.label("priority"),
+            func.coalesce(TicketPriorityConfig.name, _legacy_priority_name_expr(Ticket.priority)).label("priority_name"),
+            TicketPriorityConfig.color.label("priority_color"),
+            TicketPriorityConfig.weight.label("priority_weight"),
             Ticket.severity.label("severity"),
             Ticket.sla_due_at.label("sla_due_at"),
             Ticket.opened_at.label("opened_at"),
@@ -64,12 +102,14 @@ def _build_filtered_ticket_subquery(
         )
         .select_from(Ticket)
         .join(Unit, Unit.id == Ticket.unit_id)
+        .outerjoin(TicketCategoryConfig, TicketCategoryConfig.id == Ticket.category_id)
+        .outerjoin(TicketPriorityConfig, TicketPriorityConfig.id == Ticket.priority_id)
     )
 
     if opened_from is not None:
-        statement = statement.where(Ticket.opened_at >= opened_from)
+        statement = statement.where(func.date(Ticket.opened_at) >= opened_from.date().isoformat())
     if opened_to is not None:
-        statement = statement.where(Ticket.opened_at <= opened_to)
+        statement = statement.where(func.date(Ticket.opened_at) <= opened_to.date().isoformat())
     if unit_id is not None:
         statement = statement.where(Ticket.unit_id == unit_id)
     if region:
@@ -78,6 +118,10 @@ def _build_filtered_ticket_subquery(
         statement = statement.where(Ticket.status == status)
     if category is not None:
         statement = statement.where(Ticket.category == category)
+    if category_id is not None:
+        statement = statement.where(Ticket.category_id == category_id)
+    if priority_id is not None:
+        statement = statement.where(Ticket.priority_id == priority_id)
 
     return statement.subquery()
 
@@ -91,6 +135,8 @@ def get_dashboard_overview_aggregates(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
 ) -> dict[str, object]:
     tickets = _build_filtered_ticket_subquery(
         session=session,
@@ -100,6 +146,8 @@ def get_dashboard_overview_aggregates(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     now = datetime.now(UTC)
     resolution_hours_expr = _hours_diff_expr(session, tickets.c.opened_at, tickets.c.resolved_at)
@@ -167,6 +215,8 @@ def list_units_ranking_by_tickets(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
     limit: int = 10,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
@@ -177,6 +227,8 @@ def list_units_ranking_by_tickets(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     now = datetime.now(UTC)
     statement = (
@@ -229,6 +281,8 @@ def list_units_ranking_by_cost(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
     limit: int = 10,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
@@ -239,6 +293,8 @@ def list_units_ranking_by_cost(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     estimated_cost_total = func.coalesce(func.sum(tickets.c.estimated_cost), 0)
     final_cost_total = func.coalesce(func.sum(tickets.c.final_cost), 0)
@@ -266,6 +322,8 @@ def list_units_ranking_by_fuel_nozzles(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
     limit: int = 10,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
@@ -276,6 +334,8 @@ def list_units_ranking_by_fuel_nozzles(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     total_fuel_nozzles = func.coalesce(
         func.sum(case((tickets.c.fuel_nozzles_stopped > 0, tickets.c.fuel_nozzles_stopped), else_=0)),
@@ -306,6 +366,8 @@ def list_ticket_distribution_by_status(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
         session=session,
@@ -315,6 +377,8 @@ def list_ticket_distribution_by_status(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     statement = (
         select(tickets.c.status.label("status"), func.count(tickets.c.id).label("total"))
@@ -333,6 +397,8 @@ def list_ticket_distribution_by_category(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
         session=session,
@@ -342,11 +408,18 @@ def list_ticket_distribution_by_category(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     statement = (
-        select(tickets.c.category.label("category"), func.count(tickets.c.id).label("total"))
-        .group_by(tickets.c.category)
-        .order_by(func.count(tickets.c.id).desc(), tickets.c.category.asc())
+        select(
+            tickets.c.category_id.label("category_id"),
+            tickets.c.category.label("category"),
+            tickets.c.category_name.label("category_name"),
+            func.count(tickets.c.id).label("total"),
+        )
+        .group_by(tickets.c.category_id, tickets.c.category, tickets.c.category_name)
+        .order_by(func.count(tickets.c.id).desc(), tickets.c.category_name.asc())
     )
     return [dict(row) for row in session.execute(statement).mappings().all()]
 
@@ -360,6 +433,8 @@ def list_ticket_distribution_by_priority(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
         session=session,
@@ -369,11 +444,26 @@ def list_ticket_distribution_by_priority(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     statement = (
-        select(tickets.c.priority.label("priority"), func.count(tickets.c.id).label("total"))
-        .group_by(tickets.c.priority)
-        .order_by(func.count(tickets.c.id).desc(), tickets.c.priority.asc())
+        select(
+            tickets.c.priority_id.label("priority_id"),
+            tickets.c.priority.label("priority"),
+            tickets.c.priority_name.label("priority_name"),
+            tickets.c.priority_color.label("priority_color"),
+            tickets.c.priority_weight.label("priority_weight"),
+            func.count(tickets.c.id).label("total"),
+        )
+        .group_by(
+            tickets.c.priority_id,
+            tickets.c.priority,
+            tickets.c.priority_name,
+            tickets.c.priority_color,
+            tickets.c.priority_weight,
+        )
+        .order_by(func.count(tickets.c.id).desc(), tickets.c.priority_name.asc())
     )
     return [dict(row) for row in session.execute(statement).mappings().all()]
 
@@ -387,6 +477,8 @@ def list_ticket_distribution_by_severity(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
         session=session,
@@ -396,6 +488,8 @@ def list_ticket_distribution_by_severity(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     statement = (
         select(tickets.c.severity.label("severity"), func.count(tickets.c.id).label("total"))
@@ -414,6 +508,8 @@ def get_sla_summary_aggregates(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
 ) -> dict[str, object]:
     tickets = _build_filtered_ticket_subquery(
         session=session,
@@ -423,6 +519,8 @@ def get_sla_summary_aggregates(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     now = datetime.now(UTC)
     effective_end = func.coalesce(tickets.c.closed_at, tickets.c.resolved_at)
@@ -492,6 +590,8 @@ def list_late_tickets_preview(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    priority_id: int | None = None,
     limit: int = 10,
 ) -> list[dict[str, object]]:
     tickets = _build_filtered_ticket_subquery(
@@ -502,6 +602,8 @@ def list_late_tickets_preview(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        priority_id=priority_id,
     )
     now = datetime.now(UTC)
     statement = (
@@ -512,7 +614,11 @@ def list_late_tickets_preview(
             tickets.c.unit_name,
             tickets.c.title,
             tickets.c.status,
+            tickets.c.priority_id,
             tickets.c.priority,
+            tickets.c.priority_name,
+            tickets.c.priority_color,
+            tickets.c.priority_weight,
             tickets.c.severity,
             tickets.c.sla_due_at,
             tickets.c.opened_at,

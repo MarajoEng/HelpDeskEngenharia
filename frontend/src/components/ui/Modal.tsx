@@ -25,13 +25,13 @@ export default function Modal({
 }: ModalProps) {
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="presentation"
       onClick={onClose}
     >
       <div
         className={[
-          "bg-white rounded-2xl shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden",
+          "flex max-h-[100dvh] min-w-0 flex-col overflow-hidden rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(0,0,0,0.24)] sm:max-h-[calc(100vh-2rem)] sm:rounded-[24px]",
           size === "lg" ? "w-full max-w-3xl" : "w-full max-w-xl",
           className,
         ]
@@ -41,15 +41,15 @@ export default function Modal({
         aria-modal="true"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-slate-200">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+        <div className="flex items-start justify-between gap-4 border-b border-[#e7dfcf] px-4 py-4 sm:px-6">
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold text-slate-950">{title}</h3>
             {subtitle ? <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p> : null}
           </div>
           <button
             type="button"
             aria-label={closeLabel}
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
             onClick={onClose}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,9 +57,9 @@ export default function Modal({
             </svg>
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 p-6">{children}</div>
+        <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
         {footer ? (
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200 flex-wrap">
+          <div className="flex flex-wrap justify-end gap-3 border-t border-[#e7dfcf] bg-[#fbfaf7] px-4 py-4 sm:px-6">
             {footer}
           </div>
         ) : null}

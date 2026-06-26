@@ -16,7 +16,7 @@ export default function ErrorState({
   onRetry,
 }: ErrorStateProps) {
   return (
-    <div className="flex items-start gap-3 p-4 rounded-xl border border-red-200 bg-red-50">
+    <div className="flex items-start gap-3 rounded-[18px] border border-red-200 bg-red-50 p-4 shadow-sm">
       <div
         className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-600 font-bold text-sm flex-shrink-0"
         aria-hidden="true"

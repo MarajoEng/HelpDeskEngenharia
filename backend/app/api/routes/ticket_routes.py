@@ -20,6 +20,7 @@ from app.schemas.ticket import (
     TicketResolveRequest,
     TicketStartExecutionRequest,
 )
+from app.schemas.ticket_configuration import TicketFormSchemaResponse
 from app.schemas.user import UserListParams, UserListResponse
 from app.services.approval_service import decide_ticket_approval, request_ticket_approval
 from app.services.audit_service import log_action
@@ -35,6 +36,7 @@ from app.services.ticket_service import (
     triage_ticket,
     update_ticket_progress,
 )
+from app.services.ticket_configuration_service import get_ticket_form_schema
 
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -48,6 +50,10 @@ def _build_list_params(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     unit_id: int | None = Query(default=None, ge=1),
+    category_id: int | None = Query(default=None, ge=1),
+    subcategory_id: int | None = Query(default=None, ge=1),
+    type_id: int | None = Query(default=None, ge=1),
+    priority_id: int | None = Query(default=None, ge=1),
     status_filter: TicketStatus | None = Query(default=None, alias="status"),
     category: TicketCategory | None = Query(default=None),
     priority: PriorityLevel | None = Query(default=None),
@@ -66,6 +72,10 @@ def _build_list_params(
         page=page,
         page_size=page_size,
         unit_id=unit_id,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        type_id=type_id,
+        priority_id=priority_id,
         status=status_filter,
         category=category,
         priority=priority,
@@ -107,7 +117,7 @@ def create_ticket(
     except ServiceError as error:
         _raise_service_error(error)
 
-    log_action(session, actor_user=current_user, action="ticket_created", entity_type="ticket", entity_id=result.id, request=request, metadata={"category": payload.category.value, "priority": payload.priority.value})
+    log_action(session, actor_user=current_user, action="ticket_created", entity_type="ticket", entity_id=result.id, request=request, metadata={"category": result.category.value, "priority": result.priority.value, "category_id": result.category_id, "priority_id": result.priority_id})
     session.commit()
     return result
 
@@ -132,6 +142,18 @@ def read_ticket_triage_assignees(
 ) -> UserListResponse:
     try:
         return list_ticket_triage_assignees(session, params, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.get("/form-schema", response_model=TicketFormSchemaResponse)
+def read_ticket_form_schema(
+    category_id: int = Query(ge=1),
+    subcategory_id: int | None = Query(default=None, ge=1),
+    session: Session = Depends(get_db_session),
+) -> TicketFormSchemaResponse:
+    try:
+        return get_ticket_form_schema(session, category_id=category_id, subcategory_id=subcategory_id)
     except ServiceError as error:
         _raise_service_error(error)
 

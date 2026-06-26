@@ -10,7 +10,7 @@ export default function LoadingState({
   description = "Aguarde enquanto as informacoes sao atualizadas.",
 }: LoadingStateProps) {
   return (
-    <div className="flex items-center gap-4 p-5 rounded-xl border border-slate-200 bg-white">
+    <div className="flex items-center gap-4 rounded-[22px] border border-[#e7dfcf] bg-white p-5 shadow-[0_18px_60px_rgba(17,24,39,0.06)]">
       <div className="ui-spinner" aria-hidden="true" />
       <div>
         <h3 className="text-sm font-semibold text-slate-900">{title}</h3>

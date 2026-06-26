@@ -7,7 +7,11 @@ from sqlalchemy import select
 
 from app.models.enums import TicketStatus, UserRole
 from app.models.ticket import Ticket
+from app.models.ticket_custom_field import TicketCustomField
 from app.models.ticket_history import TicketHistory
+from app.models.ticket_subcategory import TicketSubcategoryConfig
+from app.models.ticket_type import TicketTypeConfig
+from app.services.ticket_configuration_seed import seed_ticket_configurations
 
 
 def make_ticket_payload(unit_id: int, **overrides: object) -> dict[str, object]:
@@ -27,6 +31,21 @@ def make_ticket_payload(unit_id: int, **overrides: object) -> dict[str, object]:
     }
     payload.update(overrides)
     return payload
+
+
+def make_custom_field(category_id: int, **overrides: object) -> TicketCustomField:
+    payload: dict[str, object] = {
+        "category_id": category_id,
+        "name": "pressao_linha",
+        "label": "Pressao da linha",
+        "field_type": "text",
+        "is_required": False,
+        "is_active": True,
+        "display_order": 10,
+        "options_json": [],
+    }
+    payload.update(overrides)
+    return TicketCustomField(**payload)
 
 
 @pytest.mark.anyio
@@ -316,6 +335,457 @@ async def test_ticket_filters_by_status_category_priority_and_search(
     data = response.json()
     assert data["total"] == 1
     assert data["items"][0]["id"] == first_ticket.id
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_accepts_configured_ids_and_returns_configured_names(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    db_session.commit()
+
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    category = next(item for item in seeded["categories"] if item.legacy_value == "fuel_pump")
+    priority = next(item for item in seeded["priorities"] if item.legacy_value == "high")
+    subcategory = db_session.scalar(
+        select(TicketSubcategoryConfig).where(TicketSubcategoryConfig.category_id == category.id)
+    )
+    ticket_type_id = category.category_types[0].type_id if category.category_types else None
+    ticket_type = db_session.get(TicketTypeConfig, ticket_type_id) if ticket_type_id is not None else None
+    assert subcategory is not None
+    assert ticket_type is not None
+
+    response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=category.id,
+            subcategory_id=subcategory.id,
+            type_id=ticket_type.id,
+            priority_id=priority.id,
+        ),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["category_id"] == category.id
+    assert data["subcategory_id"] == subcategory.id
+    assert data["type_id"] == ticket_type.id
+    assert data["priority_id"] == priority.id
+    assert data["category"] == category.legacy_value
+    assert data["priority"] == priority.legacy_value
+    assert data["category_name"] == category.name
+    assert data["subcategory_name"] == subcategory.name
+    assert data["type_name"] == ticket_type.name
+    assert data["priority_name"] == priority.name
+    assert data["priority_color"] == priority.color
+    assert data["priority_weight"] == priority.weight
+
+    detail_response = await client.get(
+        f"/tickets/{data['id']}",
+        headers=auth_header_for_user(admin),
+    )
+
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["category_name"] == category.name
+    assert detail["priority_name"] == priority.name
+    assert detail["priority_color"] == priority.color
+    assert detail["priority_weight"] == priority.weight
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_blocks_inactive_category_and_priority_configs(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    category = next(item for item in seeded["categories"] if item.legacy_value == "fuel_pump")
+    priority = next(item for item in seeded["priorities"] if item.legacy_value == "high")
+    category.is_active = False
+    db_session.commit()
+
+    inactive_category_response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=category.id,
+            priority_id=priority.id,
+        ),
+    )
+
+    assert inactive_category_response.status_code == 422
+    assert inactive_category_response.json() == {
+        "detail": "Ticket category configuration must be active."
+    }
+
+    category.is_active = True
+    priority.is_active = False
+    db_session.commit()
+
+    inactive_priority_response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=category.id,
+            priority_id=priority.id,
+        ),
+    )
+
+    assert inactive_priority_response.status_code == 422
+    assert inactive_priority_response.json() == {
+        "detail": "Ticket priority configuration must be active."
+    }
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_blocks_subcategory_from_another_category(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    db_session.commit()
+
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    first_category = seeded["categories"][0]
+    second_category = seeded["categories"][1]
+    priority = seeded["priorities"][0]
+    foreign_subcategory = db_session.scalar(
+        select(TicketSubcategoryConfig).where(TicketSubcategoryConfig.category_id == second_category.id)
+    )
+    assert foreign_subcategory is not None
+
+    response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=first_category.id,
+            subcategory_id=foreign_subcategory.id,
+            priority_id=priority.id,
+        ),
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Ticket subcategory does not belong to the selected category."
+    }
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_with_legacy_payload_still_works_after_config_support(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seed_ticket_configurations(db_session)
+    db_session.commit()
+
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+
+    response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(unit.id, category="electrical", priority="medium"),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["category"] == "electrical"
+    assert data["priority"] == "medium"
+    assert data["category_id"] is None
+    assert data["priority_id"] is None
+    assert data["category_name"] == "Electrical"
+    assert data["priority_name"] == "Media"
+
+    detail_response = await client.get(f"/tickets/{data['id']}", headers=auth_header_for_user(admin))
+    assert detail_response.status_code == 200
+    assert detail_response.json()["custom_fields"] == []
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_persists_custom_field_values_and_returns_detail(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    category = next(item for item in seeded["categories"] if item.legacy_value == "fuel_pump")
+    priority = next(item for item in seeded["priorities"] if item.legacy_value == "high")
+    text_field = make_custom_field(category.id, is_required=True)
+    boolean_field = make_custom_field(
+        category.id,
+        name="houve_vazamento",
+        label="Houve vazamento",
+        field_type="boolean",
+        is_required=True,
+        display_order=20,
+    )
+    date_field = make_custom_field(
+        category.id,
+        name="data_falha",
+        label="Data da falha",
+        field_type="date",
+        display_order=30,
+    )
+    db_session.add_all([text_field, boolean_field, date_field])
+    db_session.commit()
+
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+
+    create_response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=category.id,
+            priority_id=priority.id,
+            custom_fields=[
+                {"field_id": text_field.id, "value": "Baixa pressao"},
+                {"field_id": boolean_field.id, "value": False},
+                {"field_id": date_field.id, "value": "2026-06-25"},
+            ],
+        ),
+    )
+
+    assert create_response.status_code == 201
+    detail_response = await client.get(
+        f"/tickets/{create_response.json()['id']}",
+        headers=auth_header_for_user(admin),
+    )
+    assert detail_response.status_code == 200
+    custom_fields = {field["name"]: field for field in detail_response.json()["custom_fields"]}
+    assert custom_fields["pressao_linha"]["value"] == "Baixa pressao"
+    assert custom_fields["houve_vazamento"]["value"] is False
+    assert custom_fields["houve_vazamento"]["display_value"] == "Nao"
+    assert custom_fields["data_falha"]["value"] == "2026-06-25"
+
+
+@pytest.mark.anyio
+async def test_required_custom_field_blocks_ticket_without_value(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    category = seeded["categories"][0]
+    priority = seeded["priorities"][0]
+    required_field = make_custom_field(category.id, is_required=True)
+    db_session.add(required_field)
+    db_session.commit()
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+
+    response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=category.id,
+            priority_id=priority.id,
+            custom_fields=[],
+        ),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Custom field 'Pressao da linha' is required."
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_rejects_custom_field_from_other_category(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    first_category = seeded["categories"][0]
+    second_category = seeded["categories"][1]
+    priority = seeded["priorities"][0]
+    foreign_field = make_custom_field(second_category.id)
+    db_session.add(foreign_field)
+    db_session.commit()
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+
+    response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=first_category.id,
+            priority_id=priority.id,
+            custom_fields=[{"field_id": foreign_field.id, "value": "valor"}],
+        ),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Custom field does not belong to the selected category or subcategory."
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_rejects_invalid_select_and_number_values(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    category = seeded["categories"][0]
+    priority = seeded["priorities"][0]
+    select_field = make_custom_field(
+        category.id,
+        name="turno",
+        label="Turno",
+        field_type="select",
+        options_json=[
+            {"label": "Manha", "value": "manha", "display_order": 1, "is_active": True},
+            {"label": "Noite", "value": "noite", "display_order": 2, "is_active": True},
+        ],
+    )
+    number_field = make_custom_field(
+        category.id,
+        name="volume_estimado",
+        label="Volume estimado",
+        field_type="number",
+        display_order=20,
+    )
+    db_session.add_all([select_field, number_field])
+    db_session.commit()
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+
+    invalid_select = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=category.id,
+            priority_id=priority.id,
+            custom_fields=[{"field_id": select_field.id, "value": "tarde"}],
+        ),
+    )
+    invalid_number = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            category=None,
+            priority=None,
+            category_id=category.id,
+            priority_id=priority.id,
+            title="Numero invalido",
+            custom_fields=[{"field_id": number_field.id, "value": "abc"}],
+        ),
+    )
+
+    assert invalid_select.status_code == 422
+    assert invalid_select.json()["detail"] == "Custom field 'Turno' has an invalid option."
+    assert invalid_number.status_code == 422
+    assert invalid_number.json()["detail"] == "Custom field 'Volume estimado' must be a valid number."
+
+
+@pytest.mark.anyio
+async def test_ticket_filters_support_configured_ids_and_legacy_values(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    db_session.commit()
+
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    category = next(item for item in seeded["categories"] if item.legacy_value == "fuel_pump")
+    priority = next(item for item in seeded["priorities"] if item.legacy_value == "high")
+
+    configured_response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            title="Configurado",
+            category=None,
+            priority=None,
+            category_id=category.id,
+            priority_id=priority.id,
+        ),
+    )
+    legacy_response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(
+            unit.id,
+            title="Legado",
+            category="fuel_pump",
+            priority="high",
+        ),
+    )
+
+    assert configured_response.status_code == 201
+    assert legacy_response.status_code == 201
+
+    response = await client.get(
+        f"/tickets?category_id={category.id}&priority_id={priority.id}",
+        headers=auth_header_for_user(admin),
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    titles = {item["title"] for item in data["items"]}
+    assert data["total"] == 2
+    assert {"Configurado", "Legado"} <= titles
+    configured_item = next(item for item in data["items"] if item["title"] == "Configurado")
+    legacy_item = next(item for item in data["items"] if item["title"] == "Legado")
+    assert configured_item["category_name"] == category.name
+    assert configured_item["priority_name"] == priority.name
+    assert legacy_item["category_name"] == "Fuel Pump"
+    assert legacy_item["priority_name"] == "Alta"
 
 
 @pytest.mark.anyio

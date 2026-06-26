@@ -1,54 +1,43 @@
 import { Outlet, NavLink, Navigate, useLocation } from "react-router-dom";
+
 import { useAuth } from "../../hooks/useAuth";
+import { getSettingsTabs } from "./settingsTabs";
 
 export default function SettingsLayout() {
   const { user } = useAuth();
   const location = useLocation();
 
-  const canAccessUnits = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
-  const canAccessUsers = user?.role === "admin";
-  const canAccessSuppliers = user?.role === "admin" || user?.role === "engineering" || user?.role === "director";
-  const canAccessApprovalLevels = user?.role === "admin";
-  const canAccessAuditLogs = user?.role === "admin";
+  const tabs = getSettingsTabs(user?.role);
 
-  const tabs = [
-    { label: "Unidades", to: "/settings/units", enabled: canAccessUnits },
-    { label: "Usuários", to: "/settings/users", enabled: canAccessUsers },
-    { label: "Fornecedores", to: "/settings/suppliers", enabled: canAccessSuppliers },
-    { label: "Alçadas", to: "/settings/approval-levels", enabled: canAccessApprovalLevels },
-    { label: "Auditoria", to: "/settings/audit-logs", enabled: canAccessAuditLogs },
-  ].filter((tab) => tab.enabled);
-
-  // Se o usuário não tem acesso a nada, não deve estar aqui
   if (tabs.length === 0) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Redirecionar /settings para a primeira aba disponível
   if (location.pathname === "/settings" || location.pathname === "/settings/") {
     return <Navigate to={tabs[0].to} replace />;
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Gerencie permissões, unidades, alçadas e recursos do sistema.
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <header className="space-y-1">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#c9a24a]">Sistema</p>
+        <h1 className="text-[1.8rem] font-extrabold tracking-tight text-slate-950">Configurações</h1>
+        <p className="max-w-3xl text-sm leading-relaxed text-slate-500">
+          Chamados, unidades, usuários, fornecedores, alçadas e auditoria ficam concentrados nesta área.
         </p>
       </header>
 
-      <div className="border-b border-slate-200">
-        <nav className="-mb-px flex gap-6 overflow-x-auto" aria-label="Tabs de configurações">
+      <div className="min-w-0 rounded-[22px] border border-[#e7dfcf] bg-white px-3 py-2 shadow-[0_18px_60px_rgba(17,24,39,0.07)]">
+        <nav className="flex max-w-full gap-1 overflow-x-auto overscroll-x-contain" aria-label="Tabs de configurações">
           {tabs.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
               className={({ isActive }) =>
-                `whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? "border-teal-500 text-teal-600"
-                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    ? "bg-slate-950 text-white ring-1 ring-inset ring-slate-900"
+                    : "text-slate-500 hover:bg-[#f3eee2] hover:text-slate-800"
                 }`
               }
             >

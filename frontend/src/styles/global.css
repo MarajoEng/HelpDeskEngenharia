@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @theme {
@@ -13,18 +14,22 @@
 
 /* Legacy CSS variables — used by pages not yet migrated to Tailwind */
 :root {
-  --primary: #0d9488;
-  --primary-strong: #0f766e;
+  --primary: #0f766e;
+  --primary-strong: #115e59;
+  --accent: #c9a24a;
   --danger: #dc2626;
   --success: #059669;
   --info: #2563eb;
   --warning: #d97706;
   --muted: #64748b;
   --text: #0f172a;
-  --bg: #f8fafc;
-  --line: #e2e8f0;
+  --bg: #f8f6f1;
+  --soft: #f3eee2;
+  --line: #e7dfcf;
   --surface: #ffffff;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow: 0 18px 60px rgba(17, 24, 39, 0.07);
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Manrope", "Segoe UI", sans-serif;
 }
 
 *,
@@ -41,13 +46,26 @@ body,
   padding: 0;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
 body {
   min-height: 100vh;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
-  background-color: #f8fafc;
+  color: var(--text);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(248, 246, 241, 0) 280px),
+    var(--bg);
 }
 
 button,

@@ -7,6 +7,8 @@ export interface DashboardFilters {
   region?: string;
   status?: TicketStatus | "";
   category?: TicketCategory | "";
+  category_id?: number | "";
+  priority_id?: number | "";
 }
 
 export interface ExecutiveCards {
@@ -37,7 +39,13 @@ export interface DistributionItem {
   total: number;
   status?: TicketStatus;
   category?: TicketCategory;
+  category_id?: number | null;
+  category_name?: string | null;
   priority?: TicketPriority;
+  priority_id?: number | null;
+  priority_name?: string | null;
+  priority_color?: string | null;
+  priority_weight?: number | null;
   severity?: TicketSeverity;
 }
 
@@ -58,6 +66,10 @@ export interface LateTicketPreview {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
+  priority_id?: number | null;
+  priority_name?: string | null;
+  priority_color?: string | null;
+  priority_weight?: number | null;
   severity: TicketSeverity;
   sla_due_at: string;
   opened_at: string;

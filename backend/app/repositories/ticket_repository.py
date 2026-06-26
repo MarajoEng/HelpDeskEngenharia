@@ -11,6 +11,7 @@ from app.models.enums import TicketStatus
 from app.models.ticket import Ticket
 from app.models.approval import Approval
 from app.models.supplier import Supplier
+from app.models.ticket_custom_field import TicketCustomFieldValue
 from app.models.ticket_history import TicketHistory
 from app.models.unit import Unit
 
@@ -28,7 +29,12 @@ def _ticket_base_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.opened_by_user),
         selectinload(Ticket.assigned_to_user),
         selectinload(Ticket.supplier),
+        selectinload(Ticket.configured_category),
+        selectinload(Ticket.configured_subcategory),
+        selectinload(Ticket.configured_type),
+        selectinload(Ticket.configured_priority),
         selectinload(Ticket.attachments),
+        selectinload(Ticket.custom_field_values).selectinload(TicketCustomFieldValue.custom_field),
     )
 
 
@@ -38,8 +44,13 @@ def _ticket_detail_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.opened_by_user),
         selectinload(Ticket.assigned_to_user),
         selectinload(Ticket.supplier),
+        selectinload(Ticket.configured_category),
+        selectinload(Ticket.configured_subcategory),
+        selectinload(Ticket.configured_type),
+        selectinload(Ticket.configured_priority),
         selectinload(Ticket.history_entries).selectinload(TicketHistory.user),
         selectinload(Ticket.attachments).selectinload(TicketAttachment.uploaded_by_user),
+        selectinload(Ticket.custom_field_values).selectinload(TicketCustomFieldValue.custom_field),
         selectinload(Ticket.approvals).selectinload(Approval.requested_by_user),
         selectinload(Ticket.approvals).selectinload(Approval.approved_by_user),
         selectinload(Ticket.approvals).selectinload(Approval.approval_level),
@@ -50,9 +61,15 @@ def _apply_ticket_filters(
     statement: Select[tuple[Ticket]] | Select[tuple[int]],
     *,
     unit_id: int | None = None,
+    category_id: int | None = None,
+    subcategory_id: int | None = None,
+    type_id: int | None = None,
+    priority_id: int | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_legacy_value: str | None = None,
     priority: str | None = None,
+    priority_legacy_value: str | None = None,
     severity: str | None = None,
     requires_approval: bool | None = None,
     opened_from: datetime | None = None,
@@ -66,6 +83,30 @@ def _apply_ticket_filters(
 ) -> Select[tuple[Ticket]] | Select[tuple[int]]:
     if unit_id is not None:
         statement = statement.where(Ticket.unit_id == unit_id)
+    if category_id is not None:
+        if category_legacy_value is not None:
+            statement = statement.where(
+                or_(
+                    Ticket.category_id == category_id,
+                    (Ticket.category_id.is_(None) & (Ticket.category == category_legacy_value)),
+                )
+            )
+        else:
+            statement = statement.where(Ticket.category_id == category_id)
+    if subcategory_id is not None:
+        statement = statement.where(Ticket.subcategory_id == subcategory_id)
+    if type_id is not None:
+        statement = statement.where(Ticket.type_id == type_id)
+    if priority_id is not None:
+        if priority_legacy_value is not None:
+            statement = statement.where(
+                or_(
+                    Ticket.priority_id == priority_id,
+                    (Ticket.priority_id.is_(None) & (Ticket.priority == priority_legacy_value)),
+                )
+            )
+        else:
+            statement = statement.where(Ticket.priority_id == priority_id)
     if status is not None:
         statement = statement.where(Ticket.status == status)
     if category is not None:
@@ -150,6 +191,13 @@ def create_ticket_history(
     return history
 
 
+def create_ticket_custom_field_value(session: Session, **payload: object) -> TicketCustomFieldValue:
+    value = TicketCustomFieldValue(**payload)
+    session.add(value)
+    session.flush()
+    return value
+
+
 def get_ticket_by_id(session: Session, ticket_id: int) -> Ticket | None:
     statement = _ticket_base_query().where(Ticket.id == ticket_id).limit(1)
     return session.scalar(statement)
@@ -176,9 +224,15 @@ def list_tickets(
     page: int,
     page_size: int,
     unit_id: int | None = None,
+    category_id: int | None = None,
+    subcategory_id: int | None = None,
+    type_id: int | None = None,
+    priority_id: int | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_legacy_value: str | None = None,
     priority: str | None = None,
+    priority_legacy_value: str | None = None,
     severity: str | None = None,
     requires_approval: bool | None = None,
     opened_from: datetime | None = None,
@@ -194,9 +248,15 @@ def list_tickets(
     statement = _apply_ticket_filters(
         statement,
         unit_id=unit_id,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        type_id=type_id,
+        priority_id=priority_id,
         status=status,
         category=category,
+        category_legacy_value=category_legacy_value,
         priority=priority,
+        priority_legacy_value=priority_legacy_value,
         severity=severity,
         requires_approval=requires_approval,
         opened_from=opened_from,
@@ -217,9 +277,15 @@ def count_tickets(
     session: Session,
     *,
     unit_id: int | None = None,
+    category_id: int | None = None,
+    subcategory_id: int | None = None,
+    type_id: int | None = None,
+    priority_id: int | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_legacy_value: str | None = None,
     priority: str | None = None,
+    priority_legacy_value: str | None = None,
     severity: str | None = None,
     requires_approval: bool | None = None,
     opened_from: datetime | None = None,
@@ -235,9 +301,15 @@ def count_tickets(
     statement = _apply_ticket_filters(
         statement,
         unit_id=unit_id,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        type_id=type_id,
+        priority_id=priority_id,
         status=status,
         category=category,
+        category_legacy_value=category_legacy_value,
         priority=priority,
+        priority_legacy_value=priority_legacy_value,
         severity=severity,
         requires_approval=requires_approval,
         opened_from=opened_from,

@@ -17,7 +17,11 @@ class ReportFilters(PageParams):
     region: str | None = None
     status: TicketStatus | None = None
     category: TicketCategory | None = None
+    category_id: int | None = Field(default=None, ge=1)
+    subcategory_id: int | None = Field(default=None, ge=1)
+    type_id: int | None = Field(default=None, ge=1)
     priority: PriorityLevel | None = None
+    priority_id: int | None = Field(default=None, ge=1)
     severity: TicketSeverity | None = None
     supplier_id: int | None = Field(default=None, ge=1)
     only_late: bool | None = None
@@ -67,7 +71,11 @@ class ReportFilters(PageParams):
             "region",
             "status",
             "category",
+            "category_id",
+            "subcategory_id",
+            "type_id",
             "priority",
+            "priority_id",
             "severity",
             "supplier_id",
             "only_late",
@@ -94,8 +102,18 @@ class TicketReportItem(BaseModel):
     unit_code: str
     unit_name: str
     status: TicketStatus
+    category_id: int | None = None
+    subcategory_id: int | None = None
+    type_id: int | None = None
     category: TicketCategory
+    category_name: str
+    subcategory_name: str | None = None
+    type_name: str | None = None
+    priority_id: int | None = None
     priority: PriorityLevel
+    priority_name: str
+    priority_color: str | None = None
+    priority_weight: int | None = None
     severity: TicketSeverity
     opened_by_user_name: str | None
     assigned_to_user_name: str | None
@@ -120,7 +138,9 @@ class CostReportItem(BaseModel):
     unit_id: int
     unit_code: str
     unit_name: str
+    category_id: int | None = None
     category: TicketCategory
+    category_name: str
     supplier_id: int | None
     supplier_name: str | None
     estimated_cost_total: Decimal

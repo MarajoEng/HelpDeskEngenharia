@@ -7,9 +7,13 @@ from sqlalchemy import Float, case, cast, func, select
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql import Select, Subquery
 
-from app.models.enums import TicketStatus
+from app.models.enums import PriorityLevel, TicketCategory, TicketStatus
 from app.models.supplier import Supplier
 from app.models.ticket import Ticket
+from app.models.ticket_category import TicketCategoryConfig
+from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_subcategory import TicketSubcategoryConfig
+from app.models.ticket_type import TicketTypeConfig
 from app.models.unit import Unit
 from app.models.user import User
 
@@ -23,6 +27,34 @@ _FINAL_SLA_STATUSES = (
     TicketStatus.CLOSED,
     TicketStatus.CANCELED,
 )
+
+_CATEGORY_LABELS = {
+    TicketCategory.FUEL_PUMP: "Fuel Pump",
+    TicketCategory.FUEL_NOZZLE: "Fuel Nozzle",
+    TicketCategory.ELECTRICAL: "Electrical",
+    TicketCategory.PLUMBING: "Plumbing",
+    TicketCategory.LEAK: "Leak",
+    TicketCategory.STRUCTURE: "Structure",
+    TicketCategory.ROOF: "Roof",
+    TicketCategory.PAVEMENT: "Pavement",
+    TicketCategory.ENVIRONMENTAL_RISK: "Environmental Risk",
+    TicketCategory.OTHER: "Other",
+}
+
+_PRIORITY_LABELS = {
+    PriorityLevel.LOW: "Baixa",
+    PriorityLevel.MEDIUM: "Media",
+    PriorityLevel.HIGH: "Alta",
+    PriorityLevel.CRITICAL: "Critica",
+}
+
+
+def _legacy_category_name_expr(column):
+    return case(*((column == key, value) for key, value in _CATEGORY_LABELS.items()), else_=column)
+
+
+def _legacy_priority_name_expr(column):
+    return case(*((column == key, value) for key, value in _PRIORITY_LABELS.items()), else_=column)
 
 
 def _hours_diff_expr(session: Session, start_column, end_column):
@@ -41,7 +73,11 @@ def _apply_report_filters(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    subcategory_id: int | None = None,
+    type_id: int | None = None,
     priority: str | None = None,
+    priority_id: int | None = None,
     severity: str | None = None,
     supplier_id: int | None = None,
     only_late: bool | None = None,
@@ -61,8 +97,16 @@ def _apply_report_filters(
         statement = statement.where(Ticket.status == status)
     if category is not None:
         statement = statement.where(Ticket.category == category)
+    if category_id is not None:
+        statement = statement.where(Ticket.category_id == category_id)
+    if subcategory_id is not None:
+        statement = statement.where(Ticket.subcategory_id == subcategory_id)
+    if type_id is not None:
+        statement = statement.where(Ticket.type_id == type_id)
     if priority is not None:
         statement = statement.where(Ticket.priority == priority)
+    if priority_id is not None:
+        statement = statement.where(Ticket.priority_id == priority_id)
     if severity is not None:
         statement = statement.where(Ticket.severity == severity)
     if supplier_id is not None:
@@ -92,7 +136,11 @@ def _build_ticket_report_subquery(
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
+    category_id: int | None = None,
+    subcategory_id: int | None = None,
+    type_id: int | None = None,
     priority: str | None = None,
+    priority_id: int | None = None,
     severity: str | None = None,
     supplier_id: int | None = None,
     only_late: bool | None = None,
@@ -113,8 +161,18 @@ def _build_ticket_report_subquery(
             Unit.name.label("unit_name"),
             Unit.region.label("region"),
             Ticket.status.label("status"),
+            Ticket.category_id.label("category_id"),
+            Ticket.subcategory_id.label("subcategory_id"),
+            Ticket.type_id.label("type_id"),
             Ticket.category.label("category"),
+            func.coalesce(TicketCategoryConfig.name, _legacy_category_name_expr(Ticket.category)).label("category_name"),
+            TicketSubcategoryConfig.name.label("subcategory_name"),
+            TicketTypeConfig.name.label("type_name"),
+            Ticket.priority_id.label("priority_id"),
             Ticket.priority.label("priority"),
+            func.coalesce(TicketPriorityConfig.name, _legacy_priority_name_expr(Ticket.priority)).label("priority_name"),
+            TicketPriorityConfig.color.label("priority_color"),
+            TicketPriorityConfig.weight.label("priority_weight"),
             Ticket.severity.label("severity"),
             Ticket.opened_by_user_id.label("opened_by_user_id"),
             opened_by_user.name.label("opened_by_user_name"),
@@ -167,6 +225,10 @@ def _build_ticket_report_subquery(
         .join(opened_by_user, opened_by_user.id == Ticket.opened_by_user_id)
         .outerjoin(assigned_to_user, assigned_to_user.id == Ticket.assigned_to_user_id)
         .outerjoin(Supplier, Supplier.id == Ticket.supplier_id)
+        .outerjoin(TicketCategoryConfig, TicketCategoryConfig.id == Ticket.category_id)
+        .outerjoin(TicketSubcategoryConfig, TicketSubcategoryConfig.id == Ticket.subcategory_id)
+        .outerjoin(TicketTypeConfig, TicketTypeConfig.id == Ticket.type_id)
+        .outerjoin(TicketPriorityConfig, TicketPriorityConfig.id == Ticket.priority_id)
     )
 
     statement = _apply_report_filters(
@@ -177,7 +239,11 @@ def _build_ticket_report_subquery(
         region=region,
         status=status,
         category=category,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+        type_id=type_id,
         priority=priority,
+        priority_id=priority_id,
         severity=severity,
         supplier_id=supplier_id,
         only_late=only_late,
@@ -240,7 +306,9 @@ def _cost_group_statement(session: Session, tickets: Subquery) -> Select:
             tickets.c.unit_id.label("unit_id"),
             tickets.c.unit_code.label("unit_code"),
             tickets.c.unit_name.label("unit_name"),
+            tickets.c.category_id.label("category_id"),
             tickets.c.category.label("category"),
+            tickets.c.category_name.label("category_name"),
             tickets.c.supplier_id.label("supplier_id"),
             tickets.c.supplier_name.label("supplier_name"),
             func.coalesce(func.sum(tickets.c.estimated_cost), 0).label("estimated_cost_total"),
@@ -253,7 +321,9 @@ def _cost_group_statement(session: Session, tickets: Subquery) -> Select:
             tickets.c.unit_id,
             tickets.c.unit_code,
             tickets.c.unit_name,
+            tickets.c.category_id,
             tickets.c.category,
+            tickets.c.category_name,
             tickets.c.supplier_id,
             tickets.c.supplier_name,
         )

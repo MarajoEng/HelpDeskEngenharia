@@ -2,6 +2,7 @@ from sqlalchemy import Enum, ForeignKey, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin
+from app.models.enum_columns import enum_values
 from app.models.enums import TicketStatus
 
 
@@ -13,10 +14,10 @@ class TicketHistory(CreatedAtMixin, Base):
     ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     old_status: Mapped[TicketStatus | None] = mapped_column(
-        Enum(TicketStatus, name="ticket_status", native_enum=False),
+        Enum(TicketStatus, name="ticket_status", native_enum=False, values_callable=enum_values),
     )
     new_status: Mapped[TicketStatus] = mapped_column(
-        Enum(TicketStatus, name="ticket_status", native_enum=False),
+        Enum(TicketStatus, name="ticket_status", native_enum=False, values_callable=enum_values),
         nullable=False,
     )
     comment: Mapped[str | None] = mapped_column(Text)

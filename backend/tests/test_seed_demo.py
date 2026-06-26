@@ -4,12 +4,18 @@ from sqlalchemy import select
 
 from app.models.approval_level import ApprovalLevel
 from app.models.supplier import Supplier
+from app.models.ticket_category import TicketCategoryConfig
+from app.models.ticket_category_type import TicketCategoryTypeLink
+from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_subcategory import TicketSubcategoryConfig
 from app.models.ticket import Ticket
+from app.models.ticket_type import TicketTypeConfig
 from app.models.unit import Unit
 from app.models.user import User
 from scripts.seed_demo import (
     seed_approval_levels,
     seed_suppliers,
+    seed_ticket_configuration,
     seed_tickets,
     seed_units,
     seed_users,
@@ -21,6 +27,11 @@ def empty_db(db_session):
     # Ensure tables are clean before running the seed (since it relies on empty or existing states)
     db_session.execute(Ticket.__table__.delete())
     db_session.execute(Supplier.__table__.delete())
+    db_session.execute(TicketCategoryTypeLink.__table__.delete())
+    db_session.execute(TicketSubcategoryConfig.__table__.delete())
+    db_session.execute(TicketCategoryConfig.__table__.delete())
+    db_session.execute(TicketTypeConfig.__table__.delete())
+    db_session.execute(TicketPriorityConfig.__table__.delete())
     db_session.execute(User.__table__.delete())
     db_session.execute(Unit.__table__.delete())
     db_session.execute(ApprovalLevel.__table__.delete())
@@ -34,16 +45,22 @@ def test_seed_demo_idempotent(empty_db):
     # First run
     levels = seed_approval_levels(session)
     assert len(levels) == 3
-    
+
+    ticket_configuration = seed_ticket_configuration(session)
+    assert len(ticket_configuration["categories"]) >= 10
+    assert len(ticket_configuration["subcategories"]) >= 10
+    assert len(ticket_configuration["types"]) >= 5
+    assert len(ticket_configuration["priorities"]) >= 4
+
     units = seed_units(session)
     assert len(units) >= 10
-    
+
     users = seed_users(session, units)
     assert len(users) >= 5
-    
+
     suppliers = seed_suppliers(session)
     assert len(suppliers) >= 5
-    
+
     seed_tickets(session, units, users, suppliers, levels)
     session.commit()
 
@@ -55,6 +72,10 @@ def test_seed_demo_idempotent(empty_db):
     c_tickets = session.scalar(select(Ticket).with_only_columns(Ticket.id))
 
     count_levels = len(session.scalars(select(ApprovalLevel)).all())
+    count_ticket_categories = len(session.scalars(select(TicketCategoryConfig)).all())
+    count_ticket_subcategories = len(session.scalars(select(TicketSubcategoryConfig)).all())
+    count_ticket_types = len(session.scalars(select(TicketTypeConfig)).all())
+    count_ticket_priorities = len(session.scalars(select(TicketPriorityConfig)).all())
     count_units = len(session.scalars(select(Unit)).all())
     count_users = len(session.scalars(select(User)).all())
     count_suppliers = len(session.scalars(select(Supplier)).all())
@@ -62,6 +83,7 @@ def test_seed_demo_idempotent(empty_db):
 
     # Second run (should be idempotent)
     levels2 = seed_approval_levels(session)
+    seed_ticket_configuration(session)
     units2 = seed_units(session)
     users2 = seed_users(session, units2)
     suppliers2 = seed_suppliers(session)
@@ -70,6 +92,10 @@ def test_seed_demo_idempotent(empty_db):
 
     # Assert counts remain the same
     assert count_levels == len(session.scalars(select(ApprovalLevel)).all())
+    assert count_ticket_categories == len(session.scalars(select(TicketCategoryConfig)).all())
+    assert count_ticket_subcategories == len(session.scalars(select(TicketSubcategoryConfig)).all())
+    assert count_ticket_types == len(session.scalars(select(TicketTypeConfig)).all())
+    assert count_ticket_priorities == len(session.scalars(select(TicketPriorityConfig)).all())
     assert count_units == len(session.scalars(select(Unit)).all())
     assert count_users == len(session.scalars(select(User)).all())
     assert count_suppliers == len(session.scalars(select(Supplier)).all())

@@ -81,6 +81,17 @@ export interface TicketIndicators {
   has_closing_evidence: boolean;
 }
 
+export interface TicketCustomFieldValue {
+  id: number;
+  custom_field_id: number;
+  name: string;
+  label: string;
+  field_type: "text" | "textarea" | "number" | "boolean" | "select" | "date";
+  value: string | number | boolean | null;
+  display_value: string | null;
+  is_active: boolean;
+}
+
 export interface TicketApproval {
   id: number;
   ticket_id: number;
@@ -105,11 +116,21 @@ export interface Ticket {
   unit_id: number;
   opened_by_user_id: number;
   assigned_to_user_id: number | null;
+  category_id?: number | null;
+  subcategory_id?: number | null;
+  type_id?: number | null;
+  priority_id?: number | null;
   category: TicketCategory;
+  category_name?: string | null;
+  subcategory_name?: string | null;
+  type_name?: string | null;
   problem_type: string;
   title: string;
   description: string;
   priority: TicketPriority;
+  priority_name?: string | null;
+  priority_color?: string | null;
+  priority_weight?: number | null;
   severity: TicketSeverity;
   status: TicketStatus;
   operational_impact: string | null;
@@ -145,11 +166,21 @@ export interface TicketDetail {
   unit_id: number;
   opened_by_user_id: number;
   assigned_to_user_id: number | null;
+  category_id?: number | null;
+  subcategory_id?: number | null;
+  type_id?: number | null;
+  priority_id?: number | null;
   category: TicketCategory;
+  category_name?: string | null;
+  subcategory_name?: string | null;
+  type_name?: string | null;
   problem_type: string;
   title: string;
   description: string;
   priority: TicketPriority;
+  priority_name?: string | null;
+  priority_color?: string | null;
+  priority_weight?: number | null;
   severity: TicketSeverity;
   status: TicketStatus;
   operational_impact: string | null;
@@ -178,21 +209,32 @@ export interface TicketDetail {
   approvals: TicketApproval[];
   attachments: TicketAttachment[];
   indicators: TicketIndicators;
+  custom_fields: TicketCustomFieldValue[];
+}
+
+export interface TicketCustomFieldSubmission {
+  field_id: number;
+  value: string | number | boolean | null;
 }
 
 export interface TicketCreatePayload {
   unit_id: number;
-  category: TicketCategory;
+  category?: TicketCategory;
+  category_id?: number | null;
+  subcategory_id?: number | null;
+  type_id?: number | null;
   problem_type: string;
   title: string;
   description: string;
-  priority: TicketPriority;
+  priority?: TicketPriority;
+  priority_id?: number | null;
   severity: TicketSeverity;
   operational_impact?: string | null;
   fuel_nozzles_stopped?: number | null;
   estimated_daily_loss?: string | null;
   estimated_cost?: string | null;
   requires_approval: boolean;
+  custom_fields?: TicketCustomFieldSubmission[];
 }
 
 export interface TicketTriagePayload {
@@ -245,7 +287,11 @@ export interface TicketFilters {
   unit_id?: number | "";
   status?: TicketStatus | "";
   category?: TicketCategory | "";
+  category_id?: number | "";
+  subcategory_id?: number | "";
+  type_id?: number | "";
   priority?: TicketPriority | "";
+  priority_id?: number | "";
   severity?: TicketSeverity | "";
   requires_approval?: boolean | "";
   opened_from?: string;

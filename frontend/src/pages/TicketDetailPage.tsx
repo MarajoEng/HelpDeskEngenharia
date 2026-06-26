@@ -417,7 +417,7 @@ export default function TicketDetailPage() {
           <div>
             <h3 style={{ margin: "0 0 6px" }}>{ticket.title}</h3>
             <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--muted)" }}>
-              {CATEGORY_LABELS[ticket.category] ?? ticket.category} · {ticket.problem_type}
+              {ticket.category_name ?? CATEGORY_LABELS[ticket.category] ?? ticket.category} · {ticket.problem_type}
             </p>
           </div>
           <div className="ticket-summary__meta">
@@ -592,6 +592,30 @@ export default function TicketDetailPage() {
             </div>
           </dl>
         </div>
+
+        {(ticket.custom_fields ?? []).length > 0 ? (
+          <div>
+            <h3
+              style={{
+                margin: "0 0 12px",
+                fontSize: "0.95rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--muted)",
+              }}
+            >
+              Informacoes adicionais
+            </h3>
+            <dl className="details-list">
+              {(ticket.custom_fields ?? []).map((field) => (
+                <div key={field.id}>
+                  <dt>{field.label}</dt>
+                  <dd>{field.display_value ?? field.value ?? "Nao informado"}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <article className="info-card">

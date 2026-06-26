@@ -22,7 +22,7 @@ export default function Pagination({
   return (
     <div
       className={[
-        "flex items-center justify-between gap-4 flex-wrap",
+        "flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center",
         className,
       ]
         .filter(Boolean)
@@ -31,7 +31,7 @@ export default function Pagination({
       <span className="text-sm text-slate-500">
         {total} {label} · pagina {page} de {Math.max(pages, 1)}
       </span>
-      <div className="flex items-center gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
         <Button variant="secondary" size="sm" onClick={onPrevious} disabled={page <= 1}>
           Anterior
         </Button>

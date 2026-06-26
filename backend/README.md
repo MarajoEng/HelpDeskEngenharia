@@ -24,8 +24,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 ALGORITHM=HS256
 MAX_UPLOAD_SIZE_MB=10
 UPLOAD_DIR=uploads
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 REPORT_EXPORT_MAX_ROWS=5000
 ```
+
+Notas de ambiente:
+
+- `APP_ENV=development` para uso local com seed demo.
+- `CORS_ORIGINS` aceita string separada por virgula ou JSON array.
+- Em production, `CORS_ORIGINS` nao pode conter `*`.
 
 ## Instalar dependencias
 
@@ -94,6 +101,23 @@ celery -A app.workers.celery_app.celery_app worker --loglevel=info
 - `GET /auth/me`: exige bearer token valido e devolve o usuario autenticado.
 - Usuario inativo nao consegue autenticar nem reutilizar token.
 - Permissoes iniciais por perfil ficam centralizadas no backend via `require_roles`.
+- Os enums persistidos no PostgreSQL sao lidos e escritos pelos valores reais (`admin`, `open`, `high`, `fuel_nozzle`), preservando compatibilidade com as constraints do banco.
+
+Validacao rapida de login com CORS:
+
+```bash
+curl -i http://127.0.0.1:8000/health/live
+
+curl -i -X OPTIONS http://127.0.0.1:8000/auth/login \
+  -H "Origin: http://127.0.0.1:5173" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type"
+
+curl -i -X POST http://127.0.0.1:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://127.0.0.1:5173" \
+  -d '{"email":"admin@local.test","password":"admin123"}'
+```
 
 ## Cadastro administrativo da FASE 4
 

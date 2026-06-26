@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 
 import { listAlerts } from "../api/alertApi";
 import { getDashboardOverview } from "../api/dashboardApi";
+import { listTicketCategories } from "../api/ticketConfigurationApi";
 import { listUnits } from "../api/unitApi";
 import type { TicketAlert } from "../types/alert";
 import {
@@ -19,6 +20,7 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import type { DashboardFilters, DashboardOverview, DistributionItem, RankingItem } from "../types/dashboard";
 import type { TicketCategory, TicketStatus } from "../types/ticket";
+import type { TicketCategoryItem } from "../types/ticketConfiguration";
 import type { Unit } from "../types/unit";
 
 import FilterBar from "../components/ui/FilterBar";
@@ -30,9 +32,10 @@ const initialFilters: DashboardFilters = {
   region: "",
   status: "",
   category: "",
+  category_id: "",
 };
 
-const CATEGORY_LABELS: Record<TicketCategory, string> = {
+const LEGACY_CATEGORY_LABELS: Record<TicketCategory, string> = {
   fuel_pump: "Bomba",
   fuel_nozzle: "Bico",
   electrical: "Eletrica",
@@ -50,11 +53,6 @@ const statusOptions: Array<{ value: TicketStatus; label: string }> = Object.entr
   label,
 }));
 
-const categoryOptions: Array<{ value: TicketCategory; label: string }> = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
-  value: value as TicketCategory,
-  label,
-}));
-
 function percentageWidth(items: DistributionItem[], total: number) {
   if (total <= 0) return 0;
   return Math.max(8, Math.round((items.length / total) * 100));
@@ -62,7 +60,9 @@ function percentageWidth(items: DistributionItem[], total: number) {
 
 function distributionLabel(item: DistributionItem) {
   if (item.status) return STATUS_LABELS[item.status] ?? item.status;
-  if (item.category) return CATEGORY_LABELS[item.category] ?? item.category;
+  if (item.category_name) return item.category_name;
+  if (item.category) return LEGACY_CATEGORY_LABELS[item.category] ?? item.category;
+  if (item.priority_name) return item.priority_name;
   if (item.priority) return PRIORITY_LABELS[item.priority] ?? item.priority;
   if (item.severity) return SEVERITY_LABELS[item.severity] ?? item.severity;
   return "Nao definido";
@@ -94,10 +94,27 @@ function DistributionSection({
         <div className="metric-bar-list">
           {items.map((item) => {
             const width = total > 0 ? Math.max(8, Math.round((item.total / total) * 100)) : percentageWidth(items, total);
+            const itemKey =
+              item.status ??
+              item.category_id ??
+              item.category ??
+              item.priority_id ??
+              item.priority ??
+              item.severity ??
+              item.category_name ??
+              item.priority_name;
             return (
-              <div className="metric-bar" key={`${item.status ?? item.category ?? item.priority ?? item.severity}`}>
+              <div className="metric-bar" key={String(itemKey)}>
                 <div className="metric-bar__label">
-                  <span>{distributionLabel(item)}</span>
+                  <span>
+                    {item.category_name ??
+                      item.priority_name ??
+                      (item.category
+                        ? distributionLabel(item)
+                        : item.priority
+                          ? distributionLabel(item)
+                          : distributionLabel(item))}
+                  </span>
                   <strong>{item.total}</strong>
                 </div>
                 <div className="metric-bar__track">
@@ -170,6 +187,7 @@ export default function DashboardPage() {
   const [filters, setFilters] = useState<DashboardFilters>(initialFilters);
   const [draftFilters, setDraftFilters] = useState<DashboardFilters>(initialFilters);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [configuredCategories, setConfiguredCategories] = useState<TicketCategoryItem[]>([]);
   const [dashboard, setDashboard] = useState<DashboardOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
@@ -214,6 +232,25 @@ export default function DashboardPage() {
   }, [isManager, isSupplier, token]);
 
   useEffect(() => {
+    if (!token || isSupplier) return;
+
+    let isActive = true;
+    listTicketCategories({ page: 1, page_size: 100, sort: "display_order_asc" })
+      .then((categoriesResponse) => {
+        if (!isActive) return;
+        setConfiguredCategories(categoriesResponse.items);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setConfiguredCategories([]);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isSupplier, token]);
+
+  useEffect(() => {
     if (!token) {
       setIsLoading(false);
       return;
@@ -248,6 +285,16 @@ export default function DashboardPage() {
     const values = new Set(units.map((unit) => unit.region));
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [units]);
+
+  const configuredCategoryOptions = useMemo(
+    () =>
+      configuredCategories
+        .map((category) => ({
+          value: category.id,
+          label: category.name,
+        })),
+    [configuredCategories],
+  );
 
   function setDraft<K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]) {
     setDraftFilters((current) => ({ ...current, [key]: value }));
@@ -286,12 +333,17 @@ export default function DashboardPage() {
           <p className="eyebrow">Dashboard operacional</p>
           <h2 className="page__title">Visao executiva e operacional da rede</h2>
           <p className="page__description">
-            Indicadores reais de chamados, SLA, custos, bicos parados e unidades criticas.
+            Priorize vencidos, críticos e chamados em atendimento com base nos dados do backend.
           </p>
         </div>
-        <Link className="button-secondary button-primary--link" to="/tickets">
-          Ir para chamados
-        </Link>
+        <div className="header-actions">
+          <Link className="button-secondary" to="/tickets">
+            Ver chamados
+          </Link>
+          <Link className="button-primary button-primary--link" to="/tickets/new">
+            Novo chamado
+          </Link>
+        </div>
       </div>
 
       <section className="panel panel--stack">
@@ -376,11 +428,11 @@ export default function DashboardPage() {
           <label className="field">
             <span>Categoria</span>
             <select
-              value={draftFilters.category || ""}
-              onChange={(event) => setDraft("category", (event.target.value as TicketCategory | "") || "")}
+              value={String(draftFilters.category_id ?? "")}
+              onChange={(event) => setDraft("category_id", event.target.value === "" ? "" : Number(event.target.value))}
             >
               <option value="">Todas</option>
-              {categoryOptions.map((option) => (
+              {configuredCategoryOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -408,37 +460,25 @@ export default function DashboardPage() {
       {!isLoading && !errorMessage && dashboard ? (
         <>
           <section className="dashboard-kpi-grid">
-            <article className="summary-card">
-              <span className="summary-card__label">Abertos</span>
-              <strong>{dashboard.executive_cards.total_open}</strong>
-            </article>
-            <article className="summary-card">
+            <article className="summary-card summary-card--danger">
               <span className="summary-card__label">Atrasados</span>
               <strong>{dashboard.executive_cards.total_late}</strong>
+              <p>Chamados com SLA vencido no recorte.</p>
             </article>
-            <article className="summary-card">
+            <article className="summary-card summary-card--danger">
               <span className="summary-card__label">Criticos</span>
               <strong>{dashboard.executive_cards.total_critical}</strong>
+              <p>Maior risco operacional e técnico.</p>
             </article>
-            <article className="summary-card">
+            <article className="summary-card summary-card--warning">
               <span className="summary-card__label">Em execucao</span>
               <strong>{dashboard.executive_cards.total_in_progress}</strong>
+              <p>Tratativas ativas em campo.</p>
             </article>
             <article className="summary-card">
-              <span className="summary-card__label">Bicos parados</span>
-              <strong>{dashboard.executive_cards.total_fuel_nozzles_stopped}</strong>
-            </article>
-            <article className="summary-card">
-              <span className="summary-card__label">Perda diaria</span>
-              <strong>{formatMoney(String(dashboard.executive_cards.estimated_daily_loss_total))}</strong>
-            </article>
-            <article className="summary-card">
-              <span className="summary-card__label">Custo final</span>
-              <strong>{formatMoney(String(dashboard.executive_cards.final_cost_total))}</strong>
-            </article>
-            <article className="summary-card">
-              <span className="summary-card__label">SLA</span>
+              <span className="summary-card__label">SLA no prazo</span>
               <strong>{dashboard.executive_cards.sla_compliance_rate}%</strong>
+              <p>Cumprimento dentro do prazo.</p>
             </article>
           </section>
 
@@ -494,6 +534,14 @@ export default function DashboardPage() {
                 </p>
               </div>
               <dl className="details-list">
+                <div>
+                  <dt>Abertos</dt>
+                  <dd>{dashboard.executive_cards.total_open}</dd>
+                </div>
+                <div>
+                  <dt>Bicos parados</dt>
+                  <dd>{dashboard.executive_cards.total_fuel_nozzles_stopped}</dd>
+                </div>
                 <div>
                   <dt>Custo estimado</dt>
                   <dd>{formatMoney(String(dashboard.estimated_cost_total))}</dd>
@@ -606,7 +654,7 @@ export default function DashboardPage() {
                 <div className="state-card">Nenhum chamado atrasado no recorte atual.</div>
               ) : (
                 <div className="table-wrap">
-                  <table className="data-table">
+                  <table className="data-table" style={{ minWidth: 980 }}>
                     <thead>
                       <tr>
                         <th>Chamado</th>
@@ -631,12 +679,16 @@ export default function DashboardPage() {
                             <strong>{ticket.unit_code}</strong>
                             <div style={{ color: "var(--muted)", fontSize: "0.88rem" }}>{ticket.unit_name}</div>
                           </td>
-                          <td>{ticket.title}</td>
+                          <td style={{ maxWidth: "280px" }}>
+                            <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {ticket.title}
+                            </span>
+                          </td>
                           <td>
                             <span className={statusClass(ticket.status)}>{STATUS_LABELS[ticket.status]}</span>
                           </td>
                           <td>
-                            <span className={priorityClass(ticket.priority)}>{PRIORITY_LABELS[ticket.priority]}</span>
+                            <span className={priorityClass(ticket.priority)}>{ticket.priority_name ?? PRIORITY_LABELS[ticket.priority]}</span>
                           </td>
                           <td>
                             <span className={severityClass(ticket.severity)}>{SEVERITY_LABELS[ticket.severity]}</span>
@@ -668,7 +720,7 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="table-wrap">
-            <table className="data-table">
+            <table className="data-table" style={{ minWidth: 920 }}>
               <thead>
                 <tr>
                   <th>Chamado</th>
@@ -699,7 +751,11 @@ export default function DashboardPage() {
                           : "Execucao Atrasada"}
                       </span>
                     </td>
-                    <td style={{ fontSize: "0.85rem", maxWidth: "240px" }}>{alert.message}</td>
+                    <td style={{ fontSize: "0.85rem", maxWidth: "280px" }}>
+                      <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {alert.message}
+                      </span>
+                    </td>
                     <td style={{ fontSize: "0.85rem" }}>
                       {new Date(alert.created_at).toLocaleString("pt-BR")}
                     </td>

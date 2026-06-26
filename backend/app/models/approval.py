@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin
+from app.models.enum_columns import enum_values
 from app.models.enums import ApprovalStatus
 
 
@@ -28,6 +29,7 @@ class Approval(CreatedAtMixin, Base):
             native_enum=False,
             create_constraint=True,
             length=50,
+            values_callable=enum_values,
         ),
         nullable=False,
     )

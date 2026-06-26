@@ -89,6 +89,8 @@ def get_dashboard_overview(
         "region": scoped_params.region,
         "status": scoped_params.status,
         "category": scoped_params.category,
+        "category_id": scoped_params.category_id,
+        "priority_id": scoped_params.priority_id,
     }
 
     overview_raw = get_dashboard_overview_aggregates(session, **filter_kwargs)

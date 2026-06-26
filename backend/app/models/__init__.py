@@ -16,7 +16,13 @@ from app.models.supplier import Supplier
 from app.models.ticket import Ticket
 from app.models.ticket_alert import TicketAlert
 from app.models.ticket_attachment import TicketAttachment
+from app.models.ticket_category import TicketCategoryConfig
+from app.models.ticket_category_type import TicketCategoryTypeLink
+from app.models.ticket_custom_field import TicketCustomField, TicketCustomFieldValue
 from app.models.ticket_history import TicketHistory
+from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_subcategory import TicketSubcategoryConfig
+from app.models.ticket_type import TicketTypeConfig
 from app.models.unit import Unit
 from app.models.user import User
 
@@ -33,10 +39,17 @@ __all__ = [
     "Ticket",
     "TicketAlert",
     "TicketAttachment",
+    "TicketCategoryConfig",
+    "TicketCategoryTypeLink",
+    "TicketCustomField",
+    "TicketCustomFieldValue",
     "TicketCategory",
     "TicketHistory",
+    "TicketPriorityConfig",
+    "TicketSubcategoryConfig",
     "TicketSeverity",
     "TicketStatus",
+    "TicketTypeConfig",
     "Unit",
     "User",
     "UserRole",

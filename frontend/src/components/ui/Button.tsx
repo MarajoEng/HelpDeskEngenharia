@@ -12,13 +12,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-teal-600 text-white hover:bg-teal-700 shadow-sm",
+    "border border-transparent bg-slate-950 text-white shadow-sm hover:bg-slate-800",
   secondary:
-    "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50",
+    "border border-[#e7dfcf] bg-white text-slate-700 shadow-sm hover:bg-[#f3eee2] hover:text-slate-950",
   ghost:
-    "bg-transparent text-slate-600 hover:bg-slate-100",
+    "border border-transparent bg-transparent text-slate-600 hover:bg-[#f3eee2] hover:text-slate-950",
   danger:
-    "bg-red-600 text-white hover:bg-red-700 shadow-sm",
+    "border border-transparent bg-red-600 text-white shadow-sm hover:bg-red-700",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -40,9 +40,10 @@ export default function Button({
   return (
     <button
       className={[
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
+        "inline-flex max-w-full items-center justify-center gap-2 rounded-xl font-semibold transition duration-200 hover:-translate-y-0.5",
+        "whitespace-normal text-center sm:whitespace-nowrap",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a24a] focus-visible:ring-offset-1",
+        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0",
         variantClasses[variant],
         sizeClasses[size],
         block ? "w-full" : "",

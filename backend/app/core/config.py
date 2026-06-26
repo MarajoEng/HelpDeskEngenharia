@@ -1,5 +1,8 @@
 from functools import lru_cache
+import json
+from typing import Any
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,7 +33,32 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        enable_decoding=False,
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: Any) -> Any:
+        if isinstance(value, list):
+            return value
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                parsed = json.loads(stripped)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+
+        return value
+
+    @model_validator(mode="after")
+    def validate_cors_origins(self) -> "Settings":
+        if self.app_env.lower() == "production" and any(origin == "*" for origin in self.cors_origins):
+            raise ValueError("CORS_ORIGINS cannot contain '*' in production.")
+        return self
 
 
 @lru_cache

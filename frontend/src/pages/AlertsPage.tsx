@@ -197,9 +197,11 @@ export default function AlertsPage() {
                         {alert.ticket_number}
                       </Link>
                     </td>
-                    <td>
+                    <td style={{ maxWidth: "220px" }}>
                       <strong>{alert.unit_code}</strong>
-                      <div className="text-sm text-muted">{alert.unit_name}</div>
+                      <div className="text-sm text-muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {alert.unit_name}
+                      </div>
                     </td>
                     <td>{ALERT_TYPE_LABELS[alert.alert_type]}</td>
                     <td>
@@ -207,7 +209,11 @@ export default function AlertsPage() {
                         {ALERT_SEVERITY_LABELS[alert.severity]}
                       </Badge>
                     </td>
-                    <td style={{ maxWidth: "280px", fontSize: "0.85rem" }}>{alert.message}</td>
+                    <td style={{ maxWidth: "280px", fontSize: "0.85rem" }}>
+                      <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {alert.message}
+                      </span>
+                    </td>
                     <td className="text-sm">{formatDate(alert.created_at)}</td>
                     <td>
                       <Badge tone={alert.is_read ? "neutral" : "warning"}>

@@ -30,7 +30,7 @@ Siga este checklist rigorosamente antes de entrar na sala de reunião com a dire
 - [ ] O gerente consegue ver o chamado que acabou de abrir.
 - [ ] A **Triagem** feita pela Engenharia funciona, refletindo o novo status imediatamente.
 - [ ] É possível solicitar **Aprovação** financeira para o chamado, passando a requisição para o nível correspondente.
-- [ ] A **Execução** do chamado (passagem para status *In Progress* / *Waiting Supplier*) funciona.
+- [ ] A **Execução** do chamado (passagem para status _In Progress_ / _Waiting Supplier_) funciona.
 - [ ] A **Resolução/Fechamento** do chamado funciona, registrando anexos (evidência) e os custos finais.
 
 ## 5. Auditoria e Relatórios

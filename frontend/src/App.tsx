@@ -14,6 +14,7 @@ import AlertsPage from "./pages/AlertsPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 import ReportsPage from "./pages/ReportsPage";
 import SuppliersPage from "./pages/SuppliersPage";
+import TicketSettingsPage from "./pages/TicketSettingsPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import TicketsPage from "./pages/TicketsPage";
 import UnitsPage from "./pages/UnitsPage";
@@ -85,8 +86,8 @@ export default function App() {
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
 
-          {/* Rotas agrupadas de configurações */}
           <Route path="/settings" element={<SettingsLayout />}>
+            <Route path="tickets" element={<TicketSettingsPage />} />
             <Route path="units" element={<UnitsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
@@ -94,7 +95,7 @@ export default function App() {
             <Route path="audit-logs" element={<AuditLogsPage />} />
           </Route>
 
-          {/* Redirecionamentos para retrocompatibilidade */}
+          <Route path="/create-ticket" element={<Navigate to="/tickets/new" replace />} />
           <Route path="/units" element={<Navigate to="/settings/units" replace />} />
           <Route path="/users" element={<Navigate to="/settings/users" replace />} />
           <Route path="/suppliers" element={<Navigate to="/settings/suppliers" replace />} />

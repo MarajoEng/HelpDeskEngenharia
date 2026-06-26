@@ -5,10 +5,21 @@ import pytest
 from fastapi import Depends
 
 from app.api.dependencies import require_roles
+from app.core.config import get_settings
 from app.core.database import get_db_session
 from app.main import create_application
 from app.models.enums import UserRole
 from app.models.user import User
+
+
+async def _build_client_for_app(test_app, db_session):
+    def override_get_db_session() -> Generator:
+        yield db_session
+
+    test_app.dependency_overrides[get_db_session] = override_get_db_session
+    transport = httpx.ASGITransport(app=test_app)
+    client = httpx.AsyncClient(transport=transport, base_url="http://testserver")
+    return client
 
 
 @pytest.mark.anyio
@@ -41,6 +52,86 @@ async def test_login_rejects_invalid_password(
     )
 
     assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid email or password."}
+
+
+@pytest.mark.anyio
+async def test_login_cors_preflight_returns_expected_headers(
+    db_session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    get_settings.cache_clear()
+    test_app = create_application()
+
+    async with await _build_client_for_app(test_app, db_session) as cors_client:
+        response = await cors_client.options(
+            "/auth/login",
+            headers={
+                "Origin": "http://127.0.0.1:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+    test_app.dependency_overrides.clear()
+    get_settings.cache_clear()
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert "POST" in response.headers["access-control-allow-methods"]
+
+
+@pytest.mark.anyio
+async def test_login_with_origin_returns_token_and_cors_headers(
+    db_session,
+    create_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_user(email="admin@local.test", password="admin123")
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    get_settings.cache_clear()
+    test_app = create_application()
+
+    async with await _build_client_for_app(test_app, db_session) as cors_client:
+        response = await cors_client.post(
+            "/auth/login",
+            headers={"Origin": "http://127.0.0.1:5173"},
+            json={"email": "admin@local.test", "password": "admin123"},
+        )
+
+    test_app.dependency_overrides.clear()
+    get_settings.cache_clear()
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert response.json()["token_type"] == "bearer"
+    assert response.json()["access_token"]
+
+
+@pytest.mark.anyio
+async def test_login_with_origin_rejects_invalid_password_without_500(
+    db_session,
+    create_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_user(email="admin@local.test", password="admin123")
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    get_settings.cache_clear()
+    test_app = create_application()
+
+    async with await _build_client_for_app(test_app, db_session) as cors_client:
+        response = await cors_client.post(
+            "/auth/login",
+            headers={"Origin": "http://127.0.0.1:5173"},
+            json={"email": "admin@local.test", "password": "wrong-pass"},
+        )
+
+    test_app.dependency_overrides.clear()
+    get_settings.cache_clear()
+
+    assert response.status_code == 401
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
     assert response.json() == {"detail": "Invalid email or password."}
 
 

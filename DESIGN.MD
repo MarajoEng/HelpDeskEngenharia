@@ -11,6 +11,16 @@
 - Dashboard: números reais da API, recortes temporais explícitos e destaque para gargalos, SLA e fila operacional.
 - Estados: toda tela deve prever loading, erro e vazio com mensagens objetivas e ações de recuperação quando fizer sentido.
 - FASE 14: componentes compartilhados devem viver em `frontend/src/components/ui/`, com a mesma linguagem para botões, inputs, modais, tabelas, paginação e estados.
-- FASE 14: sidebar agrupada por área (`Operacao` e `Administracao`), topbar com usuário logado, logout claro e destaque forte para rota ativa.
+- FASE 14: sidebar principal enxuta com apenas `Dashboard`, `Chamados`, `Engenharia`, `Relatorios`, `Alertas` e `Configuracoes`, com largura compacta, opcao de recolhimento e destaque forte para rota ativa.
+- FASE 14: `Abrir chamado` sai da navegacao principal e aparece como acao contextual em telas operacionais, preservando a rota real de criacao.
+- FASE 14: telas administrativas secundarias ficam agrupadas em `Configuracoes` com abas internas compactas e visibilidade orientada por permissao visual.
+- FASE 14: topbar minima com usuario/perfil, indicador de sessao ativa e saida discreta, evitando informacao duplicada em relacao a sidebar.
 - FASE 14: badges devem ser resolvidos por helpers/componentes centrais, evitando `switch/case` duplicado em páginas.
+- FASE-CONFIG-BASE-1: a configuracao de chamados deve reaproveitar `SettingsLayout` e `settingsTabs.ts`, sem nova area administrativa fora de `/settings`.
+- FASE-CONFIG-BASE-1: a rota unica `/settings/tickets` concentra abas internas para `Categorias`, `Subcategorias`, `Tipos de chamado` e `Prioridades`, mantendo o visual administrativo ja adotado no portal.
+- FASE-CONFIG-BASE-1: listas configuraveis devem usar estados padronizados de loading, erro e vazio, com tabelas/modais reaproveitados de `Unidades`, `Usuarios`, `Fornecedores` e `Alcadas`.
+- FASE-CONFIG-BASE-1: categorias, tipos e prioridades deixam de nascer como lista fixa nova no frontend; o cadastro administrativo passa a vir da API e prepara a migracao do formulario de abertura para a fase seguinte.
+- FASE-CONFIG-FORM-2: `CreateTicketPage` e os filtros principais devem consumir `GET /ticket-categories`, `GET /ticket-categories/{id}/subcategories`, `GET /ticket-types` e `GET /ticket-priorities`, mantendo fallback seguro para chamados legados.
+- FASE-CONFIG-FORM-2: categoria, subcategoria, tipo e prioridade configuraveis entram no layout existente sem criar nova tela, nova sidebar ou novo padrao visual, reaproveitando `Select`, `Input`, `Button`, `LoadingState`, `ErrorState` e `EmptyState`.
+- FASE-CONFIG-FORM-2: dashboards e relatorios que exibem nomes de categoria/prioridade devem preferir os rótulos configurados pela API quando houver `legacy_value` compativel, sem quebrar distribuicoes e filtros antigos.
 - Regra final: proibido mock fixo em tela final ou indicador visual que simule dado real sem origem na API.

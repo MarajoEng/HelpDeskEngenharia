@@ -1,6 +1,6 @@
 # Frontend
 
-React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao (FASE 3), cadastros (FASE 4), abertura (FASE 5), listagem/detalhe avancado (FASE 6), triagem (FASE 7), aprovacao (FASE 8), execucao (FASE 9), encerramento com evidencia (FASE 10), dashboard operacional (FASE 11), alertas/auditoria (FASES 12 e 13), padrao visual profissional (FASE 14) e relatorios/exportacao CSV (FASE 15).
+React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao (FASE 3), cadastros (FASE 4), abertura (FASE 5), listagem/detalhe avancado (FASE 6), triagem (FASE 7), aprovacao (FASE 8), execucao (FASE 9), encerramento com evidencia (FASE 10), dashboard operacional (FASE 11), alertas/auditoria (FASES 12 e 13), padrao visual profissional (FASE 14), relatorios/exportacao CSV (FASE 15), base configuravel de chamados em `Configuracoes > Chamados` (FASE-CONFIG-BASE-1) e formulario/filtros consumindo configuracao real (FASE-CONFIG-FORM-2).
 
 ## Estrutura
 
@@ -14,12 +14,14 @@ React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao 
 - `src/api/attachmentApi.ts`: upload, listagem e download de evidencias.
 - `src/api/dashboardApi.ts`: integracao com `/dashboard/overview`.
 - `src/api/reportApi.ts`: integracao com `/reports` e exportacao CSV autenticada.
+- `src/api/ticketConfigurationApi.ts`: CRUD administrativo em `/admin/ticket-*` e leitura publica em `/ticket-categories`, `/ticket-types`, `/ticket-priorities` e `/ticket-categories/{id}/subcategories`.
 - `src/pages/LoginPage.tsx`: tela de login.
-- `src/pages/CreateTicketPage.tsx`: abertura de chamado.
+- `src/pages/CreateTicketPage.tsx`: abertura de chamado com categorias, subcategorias, tipos e prioridades vindos da configuracao real.
 - `src/pages/EngineeringQueuePage.tsx`: fila da engenharia com filtros, cards de resumo e acao de triagem.
 - `src/pages/DashboardPage.tsx`: dashboard executivo e operacional com filtros, cards, rankings e SLA.
 - `src/pages/ReportsPage.tsx`: tela de relatorios com abas por tipo, filtros superiores, tabela paginada e exportacao CSV.
-- `src/pages/TicketsPage.tsx`: listagem paginada com filtros avancados (busca textual, only_late, bicos parados, custo min/max).
+- `src/pages/TicketSettingsPage.tsx`: area unica em `/settings/tickets` com abas internas para `Categorias`, `Subcategorias`, `Tipos de chamado` e `Prioridades`.
+- `src/pages/TicketsPage.tsx`: listagem paginada com filtros avancados e opcoes configuraveis para categoria, tipo e prioridade.
 - `src/pages/TicketDetailPage.tsx`: detalhe completo com indicadores finais, evidencias, historico e acoes de encerramento.
 - `src/pages/ApprovalLevelsPage.tsx`: configuracao paginada de alcadas para `admin`.
 - `src/pages/UnitsPage.tsx`: listagem e modal de criacao/edicao de unidades.
@@ -30,7 +32,8 @@ React + TypeScript + Vite para o Portal de Chamados Engenharia com autenticacao 
 - `src/components/tickets/EvidenceSection.tsx`: secao de evidencias com upload/download.
 - `src/components/tickets/ResolveTicketModal.tsx`: resolucao tecnica com custo final.
 - `src/components/tickets/CloseTicketModal.tsx`: fechamento final auditavel.
-- `src/components/layout/AppLayout.tsx`: shell com sidebar e topbar para usuario logado.
+- `src/components/layout/AppLayout.tsx`: shell principal com sidebar compacta/recolhivel, topbar minima e destaque consistente da rota ativa.
+- `src/components/settings/SettingsLayout.tsx`: agrupador administrativo com abas internas compactas para `Chamados`, `Unidades`, `Usuarios`, `Fornecedores`, `Alcadas` e `Auditoria`.
 - `src/components/ui/`: biblioteca leve de componentes visuais reutilizaveis (`Button`, `Badge`, `Input`, `Select`, `Textarea`, `Modal`, `Table`, `Pagination`, `EmptyState`, `LoadingState`, `ErrorState`, `ConfirmDialog`, `PageHeader`, `FilterBar`, `StatCard`, `StatusBadge`, `PriorityBadge`, `SeverityBadge`).
 - `src/utils/messages.ts`: normalizacao de mensagens operacionais e vazios padronizados.
 - `src/utils/formatters.ts`: formatacao central de datas, moeda e campos `datetime-local`.
@@ -71,7 +74,15 @@ npm run build
 
 ## Padrao UX (FASE 14)
 
-- Layout principal com sidebar agrupada por `Operacao` e `Administracao`, topbar com contexto de sessao, destaque de rota ativa e comportamento adaptado para telas menores.
+- Layout principal com menu principal enxuto: `Dashboard`, `Chamados`, `Engenharia`, `Relatorios`, `Alertas` e `Configuracoes`.
+- Sidebar compacta com largura reduzida, menos espacos vazios, rodape de usuario discreto e modo recolhido persistido em `localStorage`.
+- `Abrir chamado` deixa a sidebar e passa a existir como acao contextual em `Dashboard` e `Chamados`, mantendo compatibilidade com `/tickets/new` e `/create-ticket`.
+- `Configuracoes` concentra `Unidades`, `Usuarios`, `Fornecedores`, `Alcadas` e `Auditoria` em abas internas, respeitando permissao visual por perfil.
+- `Configuracoes > Chamados` reaproveita o mesmo `SettingsLayout`, sem nova sidebar ou nova area administrativa, e concentra o CRUD de categorias, subcategorias, tipos e prioridades em `/settings/tickets`.
+- `CreateTicketPage` reaproveita o fluxo existente em `/tickets/new`, mas deixa de depender de listas fixas para categoria, tipo e prioridade; a subcategoria passa a ser carregada conforme a categoria selecionada.
+- `TicketsPage` passa a filtrar por `category_id`, `type_id` e `priority_id`, enquanto o backend preserva compatibilidade com chamados antigos e com `/create-ticket -> /tickets/new`.
+- A navegacao ativa continua agrupando qualquer rota de configuracao em `Configuracoes`, enquanto a subtela `/settings/tickets` controla suas proprias abas internas por `?tab=`.
+- Rota ativa segue o agrupamento esperado: `/dashboard`, `/tickets*`, `/engineering`, `/reports`, `/alerts` e `/settings/*`.
 - Formularios com labels sempre visiveis, foco visual consistente, mensagens de erro amigaveis e botoes padronizados.
 - Tabelas administrativas e operacionais com cabecalho claro, badges centralizados, estados de loading/erro/vazio e paginacao uniforme.
 - Badges compartilhados para status, prioridade, severidade, leitura de alerta e estados binarios simples.
@@ -101,7 +112,7 @@ npm run build
 ## Testes
 
 - Validacao automatica disponivel nesta fase: `npm run build`
-- Suite E2E minima disponivel em `frontend/e2e/login.spec.ts`
+- Suite E2E minima disponivel em `frontend/e2e/login.spec.ts`, `frontend/e2e/navigation-compact.spec.ts`, `frontend/e2e/settings-tickets.spec.ts` e `frontend/e2e/create-ticket-config.spec.ts`
 
 ```bash
 cd frontend
@@ -127,10 +138,10 @@ Observacoes de E2E:
 ## Testar cadastros e chamados
 
 1. Entre com um usuario `admin`.
-2. Use a sidebar para acessar `Unidades` e `Usuarios`.
-3. Valide filtros, paginacao e os modais de criacao/edicao consumindo a API real.
-4. Acesse `Chamados` para testar filtros avancados e paginacao.
-5. Acesse `Abrir chamado` para criar um ticket real via `POST /tickets`.
+2. Use `Configuracoes` para acessar `Chamados`, `Unidades`, `Usuarios`, `Fornecedores`, `Alcadas` e `Auditoria`.
+3. Em `Configuracoes > Chamados`, valide as abas `Categorias`, `Subcategorias`, `Tipos de chamado` e `Prioridades`, com filtros, paginacao e modais de criacao/edicao consumindo a API real.
+4. Acesse `Chamados` para testar filtros avancados e os selects configuraveis de categoria, tipo e prioridade.
+5. Use o botao contextual `Novo chamado` em `Dashboard` ou `Chamados` para criar um ticket real via `POST /tickets`, com categoria/subcategoria/tipo/prioridade vindos da configuracao.
 6. Acesse `Engenharia` para validar a fila `queue=engineering`, filtros e cards de resumo.
 7. Clique em `Fazer triagem` na fila ou no detalhe para atualizar responsavel, prioridade, severidade, SLA e comentario tecnico.
 8. Em um ticket com `requires_approval=true`, solicite aprovacao pelo detalhe informando valor e justificativa.

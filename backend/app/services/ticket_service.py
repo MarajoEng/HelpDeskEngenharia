@@ -1,19 +1,32 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from decimal import Decimal
+from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.enums import TicketStatus, UserRole
+from app.models.enums import PriorityLevel, TicketCategory, TicketStatus, UserRole
 from app.models.ticket import Ticket
 from app.models.ticket_attachment import TicketAttachment
+from app.models.ticket_category import TicketCategoryConfig
+from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_subcategory import TicketSubcategoryConfig
+from app.models.ticket_type import TicketTypeConfig
 from app.models.user import User
 from app.repositories.attachment_repository import count_attachments_by_ticket_and_type
 from app.repositories.supplier_repository import get_supplier_by_id as get_supplier
+from app.repositories.ticket_configuration_repository import (
+    get_ticket_category_by_id as get_ticket_config_category_by_id,
+    get_ticket_priority_by_id as get_ticket_config_priority_by_id,
+    get_ticket_subcategory_by_id as get_ticket_config_subcategory_by_id,
+    get_ticket_type_by_id as get_ticket_config_type_by_id,
+    list_active_ticket_custom_fields_for_scope,
+)
 from app.repositories.ticket_repository import (
     count_tickets,
     create_ticket,
+    create_ticket_custom_field_value,
     create_ticket_history,
     get_ticket_by_id,
     get_ticket_detail_by_id,
@@ -29,6 +42,7 @@ from app.schemas.approval import ApprovalResponse
 from app.schemas.pagination import calculate_pages
 from app.schemas.ticket import (
     TicketCloseRequest,
+    TicketCustomFieldValueResponse,
     TicketDetailResponse,
     TicketHistoryResponse,
     TicketIndicators,
@@ -108,6 +122,202 @@ class SupplierInactiveError(ValidationServiceError):
     detail = "Supplier must be active."
 
 
+class TicketCategoryConfigNotFoundError(ValidationServiceError):
+    detail = "Ticket category configuration not found."
+
+
+class TicketCategoryConfigInactiveError(ValidationServiceError):
+    detail = "Ticket category configuration must be active."
+
+
+class TicketSubcategoryConfigNotFoundError(ValidationServiceError):
+    detail = "Ticket subcategory configuration not found."
+
+
+class TicketSubcategoryConfigInactiveError(ValidationServiceError):
+    detail = "Ticket subcategory configuration must be active."
+
+
+class TicketSubcategoryCategoryMismatchError(ValidationServiceError):
+    detail = "Ticket subcategory does not belong to the selected category."
+
+
+class TicketTypeConfigNotFoundError(ValidationServiceError):
+    detail = "Ticket type configuration not found."
+
+
+class TicketTypeConfigInactiveError(ValidationServiceError):
+    detail = "Ticket type configuration must be active."
+
+
+class TicketTypeCategoryMismatchError(ValidationServiceError):
+    detail = "Ticket type is not allowed for the selected category."
+
+
+class TicketPriorityConfigNotFoundError(ValidationServiceError):
+    detail = "Ticket priority configuration not found."
+
+
+class TicketPriorityConfigInactiveError(ValidationServiceError):
+    detail = "Ticket priority configuration must be active."
+
+
+def _custom_field_options(field) -> list[dict[str, Any]]:
+    options = field.options_json or []
+    return sorted(options, key=lambda option: (option.get("display_order", 0), option.get("label", "")))
+
+
+def _is_empty_custom_field_value(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def _custom_field_display_value(field, value: Any) -> str | None:
+    if value is None:
+        return None
+    if field.field_type == "boolean":
+        return "Sim" if value is True else "Nao"
+    if field.field_type == "select":
+        for option in _custom_field_options(field):
+            if option.get("value") == value:
+                return str(option.get("label") or value)
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
+
+
+def _to_custom_field_value_response(value) -> TicketCustomFieldValueResponse | None:
+    field = value.custom_field
+    if field is None:
+        return None
+
+    typed_value: Any = None
+    if field.field_type in {"text", "textarea", "select"}:
+        typed_value = value.value_text
+    elif field.field_type == "number":
+        typed_value = value.value_number
+    elif field.field_type == "boolean":
+        typed_value = value.value_boolean
+    elif field.field_type == "date":
+        typed_value = value.value_date
+    else:
+        typed_value = value.value_json
+
+    return TicketCustomFieldValueResponse(
+        id=value.id,
+        custom_field_id=field.id,
+        name=field.name,
+        label=field.label,
+        field_type=field.field_type,
+        value=typed_value,
+        display_value=_custom_field_display_value(field, typed_value),
+        is_active=field.is_active,
+    )
+
+
+def _normalize_custom_field_submissions(custom_fields: Any) -> dict[int, Any]:
+    if custom_fields is None:
+        return {}
+
+    normalized: dict[int, Any] = {}
+    if isinstance(custom_fields, dict):
+        for raw_field_id, value in custom_fields.items():
+            try:
+                field_id = int(raw_field_id)
+            except (TypeError, ValueError) as exc:
+                raise ValidationServiceError("Custom field id must be numeric.") from exc
+            normalized[field_id] = value
+        return normalized
+
+    for item in custom_fields:
+        field_id = item.field_id if hasattr(item, "field_id") else item.get("field_id")
+        value = item.value if hasattr(item, "value") else item.get("value")
+        normalized[int(field_id)] = value
+    return normalized
+
+
+def _validate_custom_field_value(field, value: Any) -> dict[str, Any] | None:
+    if _is_empty_custom_field_value(value):
+        if field.is_required:
+            raise ValidationServiceError(f"Custom field '{field.label}' is required.")
+        return None
+
+    if field.field_type in {"text", "textarea"}:
+        return {"value_text": str(value).strip()}
+
+    if field.field_type == "select":
+        selected_value = str(value).strip()
+        active_values = {
+            str(option.get("value"))
+            for option in _custom_field_options(field)
+            if option.get("is_active", True) is True
+        }
+        if selected_value not in active_values:
+            raise ValidationServiceError(f"Custom field '{field.label}' has an invalid option.")
+        return {"value_text": selected_value}
+
+    if field.field_type == "number":
+        try:
+            return {"value_number": Decimal(str(value))}
+        except (InvalidOperation, ValueError) as exc:
+            raise ValidationServiceError(f"Custom field '{field.label}' must be a valid number.") from exc
+
+    if field.field_type == "boolean":
+        if not isinstance(value, bool):
+            raise ValidationServiceError(f"Custom field '{field.label}' must be true or false.")
+        return {"value_boolean": value}
+
+    if field.field_type == "date":
+        if isinstance(value, date) and not isinstance(value, datetime):
+            parsed_date = value
+        elif isinstance(value, str):
+            try:
+                parsed_date = date.fromisoformat(value)
+            except ValueError as exc:
+                raise ValidationServiceError(f"Custom field '{field.label}' must be a valid date.") from exc
+        else:
+            raise ValidationServiceError(f"Custom field '{field.label}' must be a valid date.")
+        return {"value_date": parsed_date}
+
+    return {"value_json": value}
+
+
+def _persist_ticket_custom_fields(
+    session: Session,
+    *,
+    ticket_id: int,
+    category_id: int | None,
+    subcategory_id: int | None,
+    custom_fields: Any,
+) -> None:
+    if category_id is None:
+        if custom_fields:
+            raise ValidationServiceError("Custom fields require a configured category.")
+        return
+
+    active_fields = list_active_ticket_custom_fields_for_scope(
+        session,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+    )
+    active_by_id = {field.id: field for field in active_fields}
+    submitted_values = _normalize_custom_field_submissions(custom_fields)
+
+    unknown_field_ids = set(submitted_values) - set(active_by_id)
+    if unknown_field_ids:
+        raise ValidationServiceError("Custom field does not belong to the selected category or subcategory.")
+
+    for field in active_fields:
+        value_payload = _validate_custom_field_value(field, submitted_values.get(field.id))
+        if value_payload is None:
+            continue
+        create_ticket_custom_field_value(
+            session,
+            ticket_id=ticket_id,
+            custom_field_id=field.id,
+            **value_payload,
+        )
+
+
 def _to_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
@@ -150,6 +360,148 @@ def _to_attachment_response(attachment: TicketAttachment) -> TicketAttachmentRes
     )
 
 
+def _fallback_category_name(ticket: Ticket) -> str:
+    if ticket.configured_category is not None:
+        return ticket.configured_category.name
+    return ticket.category.value.replace("_", " ").title()
+
+
+def _fallback_priority_name(ticket: Ticket) -> str:
+    if ticket.configured_priority is not None:
+        return ticket.configured_priority.name
+
+    mapping = {
+        PriorityLevel.LOW: "Baixa",
+        PriorityLevel.MEDIUM: "Media",
+        PriorityLevel.HIGH: "Alta",
+        PriorityLevel.CRITICAL: "Critica",
+    }
+    return mapping[ticket.priority]
+
+
+def _resolve_ticket_category_config(
+    session: Session,
+    category_id: int | None,
+) -> TicketCategoryConfig | None:
+    if category_id is None:
+        return None
+
+    category = get_ticket_config_category_by_id(session, category_id)
+    if category is None:
+        raise TicketCategoryConfigNotFoundError
+    if not category.is_active:
+        raise TicketCategoryConfigInactiveError
+    return category
+
+
+def _resolve_ticket_subcategory_config(
+    session: Session,
+    subcategory_id: int | None,
+) -> TicketSubcategoryConfig | None:
+    if subcategory_id is None:
+        return None
+
+    subcategory = get_ticket_config_subcategory_by_id(session, subcategory_id)
+    if subcategory is None:
+        raise TicketSubcategoryConfigNotFoundError
+    if not subcategory.is_active:
+        raise TicketSubcategoryConfigInactiveError
+    return subcategory
+
+
+def _resolve_ticket_type_config(
+    session: Session,
+    type_id: int | None,
+) -> TicketTypeConfig | None:
+    if type_id is None:
+        return None
+
+    ticket_type = get_ticket_config_type_by_id(session, type_id)
+    if ticket_type is None:
+        raise TicketTypeConfigNotFoundError
+    if not ticket_type.is_active:
+        raise TicketTypeConfigInactiveError
+    return ticket_type
+
+
+def _resolve_ticket_priority_config(
+    session: Session,
+    priority_id: int | None,
+) -> TicketPriorityConfig | None:
+    if priority_id is None:
+        return None
+
+    priority = get_ticket_config_priority_by_id(session, priority_id)
+    if priority is None:
+        raise TicketPriorityConfigNotFoundError
+    if not priority.is_active:
+        raise TicketPriorityConfigInactiveError
+    return priority
+
+
+def _legacy_category_from_config(category: TicketCategoryConfig) -> TicketCategory:
+    if category.legacy_value:
+        try:
+            return TicketCategory(category.legacy_value)
+        except ValueError:
+            pass
+    return TicketCategory.OTHER
+
+
+def _legacy_priority_from_config(priority: TicketPriorityConfig) -> PriorityLevel:
+    if priority.legacy_value:
+        try:
+            return PriorityLevel(priority.legacy_value)
+        except ValueError:
+            pass
+
+    if priority.weight >= 40:
+        return PriorityLevel.CRITICAL
+    if priority.weight >= 30:
+        return PriorityLevel.HIGH
+    if priority.weight >= 20:
+        return PriorityLevel.MEDIUM
+    return PriorityLevel.LOW
+
+
+def _resolve_ticket_configuration_payload(
+    session: Session,
+    payload: TicketCreate,
+) -> tuple[
+    TicketCategoryConfig | None,
+    TicketSubcategoryConfig | None,
+    TicketTypeConfig | None,
+    TicketPriorityConfig | None,
+    TicketCategory,
+    PriorityLevel,
+]:
+    subcategory = _resolve_ticket_subcategory_config(session, payload.subcategory_id)
+    category = _resolve_ticket_category_config(session, payload.category_id)
+    if category is None and subcategory is not None:
+        category = _resolve_ticket_category_config(session, subcategory.category_id)
+
+    ticket_type = _resolve_ticket_type_config(session, payload.type_id)
+    priority = _resolve_ticket_priority_config(session, payload.priority_id)
+
+    if subcategory is not None and category is not None and subcategory.category_id != category.id:
+        raise TicketSubcategoryCategoryMismatchError
+
+    if category is not None and ticket_type is not None:
+        allowed_type_ids = {link.type_id for link in category.category_types if link.ticket_type and link.ticket_type.is_active}
+        if ticket_type.id not in allowed_type_ids:
+            raise TicketTypeCategoryMismatchError
+
+    legacy_category = _legacy_category_from_config(category) if category is not None else payload.category
+    legacy_priority = _legacy_priority_from_config(priority) if priority is not None else payload.priority
+
+    if legacy_category is None:
+        raise TicketCategoryConfigNotFoundError
+    if legacy_priority is None:
+        raise TicketPriorityConfigNotFoundError
+
+    return category, subcategory, ticket_type, priority, legacy_category, legacy_priority
+
+
 def _to_ticket_response(ticket: Ticket) -> TicketResponse:
     has_closing_evidence = any(
         attachment.attachment_type == _CLOSING_ATTACHMENT_TYPE for attachment in ticket.attachments
@@ -161,11 +513,21 @@ def _to_ticket_response(ticket: Ticket) -> TicketResponse:
             "unit_id": ticket.unit_id,
             "opened_by_user_id": ticket.opened_by_user_id,
             "assigned_to_user_id": ticket.assigned_to_user_id,
+            "category_id": ticket.category_id,
+            "subcategory_id": ticket.subcategory_id,
+            "type_id": ticket.type_id,
+            "priority_id": ticket.priority_id,
             "category": ticket.category,
+            "category_name": _fallback_category_name(ticket),
+            "subcategory_name": ticket.configured_subcategory.name if ticket.configured_subcategory else None,
+            "type_name": ticket.configured_type.name if ticket.configured_type else None,
             "problem_type": ticket.problem_type,
             "title": ticket.title,
             "description": ticket.description,
             "priority": ticket.priority,
+            "priority_name": _fallback_priority_name(ticket),
+            "priority_color": ticket.configured_priority.color if ticket.configured_priority else None,
+            "priority_weight": ticket.configured_priority.weight if ticket.configured_priority else None,
             "severity": ticket.severity,
             "status": ticket.status,
             "operational_impact": ticket.operational_impact,
@@ -330,6 +692,19 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
     approval_responses = [_to_approval_response(approval) for approval in approvals]
     attachments = sorted(ticket.attachments, key=lambda attachment: attachment.created_at, reverse=True)
     attachment_responses = [_to_attachment_response(attachment) for attachment in attachments]
+    custom_field_values = sorted(
+        ticket.custom_field_values,
+        key=lambda item: (
+            item.custom_field.display_order if item.custom_field else 0,
+            item.custom_field.label if item.custom_field else "",
+            item.id,
+        ),
+    )
+    custom_field_responses = [
+        response
+        for response in (_to_custom_field_value_response(value) for value in custom_field_values)
+        if response is not None
+    ]
 
     return TicketDetailResponse(
         id=ticket.id,
@@ -337,11 +712,21 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
         unit_id=ticket.unit_id,
         opened_by_user_id=ticket.opened_by_user_id,
         assigned_to_user_id=ticket.assigned_to_user_id,
+        category_id=ticket.category_id,
+        subcategory_id=ticket.subcategory_id,
+        type_id=ticket.type_id,
+        priority_id=ticket.priority_id,
         category=ticket.category,
+        category_name=_fallback_category_name(ticket),
+        subcategory_name=ticket.configured_subcategory.name if ticket.configured_subcategory else None,
+        type_name=ticket.configured_type.name if ticket.configured_type else None,
         problem_type=ticket.problem_type,
         title=ticket.title,
         description=ticket.description,
         priority=ticket.priority,
+        priority_name=_fallback_priority_name(ticket),
+        priority_color=ticket.configured_priority.color if ticket.configured_priority else None,
+        priority_weight=ticket.configured_priority.weight if ticket.configured_priority else None,
         severity=ticket.severity,
         status=ticket.status,
         operational_impact=ticket.operational_impact,
@@ -370,6 +755,7 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
         approvals=approval_responses,
         attachments=attachment_responses,
         indicators=_calculate_indicators(ticket),
+        custom_fields=custom_field_responses,
     )
 
 
@@ -420,6 +806,9 @@ def _ensure_ticket_can_be_viewed(current_user: User, ticket: Ticket) -> None:
 def create_ticket_record(session: Session, payload: TicketCreate, current_user: User) -> TicketResponse:
     _enforce_create_permission(current_user, payload.unit_id)
     _ensure_unit_available(session, payload.unit_id)
+    category_config, subcategory_config, type_config, priority_config, legacy_category, legacy_priority = (
+        _resolve_ticket_configuration_payload(session, payload)
+    )
 
     opened_at = datetime.now(UTC)
     ticket = create_ticket(
@@ -428,11 +817,15 @@ def create_ticket_record(session: Session, payload: TicketCreate, current_user: 
         unit_id=payload.unit_id,
         opened_by_user_id=current_user.id,
         assigned_to_user_id=None,
-        category=payload.category,
+        category_id=category_config.id if category_config else None,
+        subcategory_id=subcategory_config.id if subcategory_config else None,
+        type_id=type_config.id if type_config else None,
+        priority_id=priority_config.id if priority_config else None,
+        category=legacy_category,
         problem_type=payload.problem_type,
         title=payload.title,
         description=payload.description,
-        priority=payload.priority,
+        priority=legacy_priority,
         severity=payload.severity,
         status=TicketStatus.OPEN,
         operational_impact=payload.operational_impact,
@@ -453,6 +846,13 @@ def create_ticket_record(session: Session, payload: TicketCreate, current_user: 
         supplier_id=None,
     )
     ticket.ticket_number = _build_ticket_number(ticket.id, opened_at)
+    _persist_ticket_custom_fields(
+        session,
+        ticket_id=ticket.id,
+        category_id=ticket.category_id,
+        subcategory_id=ticket.subcategory_id,
+        custom_fields=payload.custom_fields,
+    )
     create_ticket_history(
         session,
         ticket_id=ticket.id,
@@ -481,12 +881,27 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         raise TicketPermissionError
 
     scoped_params = _restrict_unit_scope(current_user, params)
+    category_legacy_value: str | None = None
+    priority_legacy_value: str | None = None
+    if scoped_params.category_id is not None:
+        category_config = get_ticket_config_category_by_id(session, scoped_params.category_id)
+        category_legacy_value = category_config.legacy_value if category_config else None
+    if scoped_params.priority_id is not None:
+        priority_config = get_ticket_config_priority_by_id(session, scoped_params.priority_id)
+        priority_legacy_value = priority_config.legacy_value if priority_config else None
+
     total = count_tickets(
         session,
         unit_id=scoped_params.unit_id,
+        category_id=scoped_params.category_id,
+        subcategory_id=scoped_params.subcategory_id,
+        type_id=scoped_params.type_id,
+        priority_id=scoped_params.priority_id,
         status=scoped_params.status,
         category=scoped_params.category,
+        category_legacy_value=category_legacy_value,
         priority=scoped_params.priority,
+        priority_legacy_value=priority_legacy_value,
         severity=scoped_params.severity,
         requires_approval=scoped_params.requires_approval,
         opened_from=scoped_params.opened_from,
@@ -503,9 +918,15 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         page=scoped_params.page,
         page_size=scoped_params.page_size,
         unit_id=scoped_params.unit_id,
+        category_id=scoped_params.category_id,
+        subcategory_id=scoped_params.subcategory_id,
+        type_id=scoped_params.type_id,
+        priority_id=scoped_params.priority_id,
         status=scoped_params.status,
         category=scoped_params.category,
+        category_legacy_value=category_legacy_value,
         priority=scoped_params.priority,
+        priority_legacy_value=priority_legacy_value,
         severity=scoped_params.severity,
         requires_approval=scoped_params.requires_approval,
         opened_from=scoped_params.opened_from,
