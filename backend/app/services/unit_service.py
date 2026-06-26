@@ -3,8 +3,9 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.models.unit import Unit
-from app.repositories.unit_repository import count_units, create_unit, get_unit_by_code, get_unit_by_id, list_units, update_unit
+from app.repositories.unit_repository import count_units, create_unit, get_unit_by_code, get_unit_by_id, list_unit_groups, list_units, update_unit
 from app.schemas import UnitCreate, UnitListParams, UnitListResponse, UnitResponse, UnitUpdate
+from app.schemas.unit import UnitGroupResponse
 from app.schemas.pagination import calculate_pages
 from app.services.exceptions import ConflictServiceError, NotFoundServiceError
 
@@ -36,6 +37,8 @@ def create_unit_record(session: Session, payload: UnitCreate) -> Unit:
     return create_unit(
         session,
         code=normalized_code,
+        group_code=payload.group_code,
+        branch_code=payload.branch_code,
         name=payload.name,
         city=payload.city,
         state=payload.state,
@@ -51,6 +54,8 @@ def list_unit_records(session: Session, params: UnitListParams) -> UnitListRespo
         is_active=params.is_active,
         state=params.state,
         region=params.region,
+        group_code=params.group_code,
+        branch_code=params.branch_code,
     )
     items = list_units(
         session,
@@ -60,6 +65,8 @@ def list_unit_records(session: Session, params: UnitListParams) -> UnitListRespo
         is_active=params.is_active,
         state=params.state,
         region=params.region,
+        group_code=params.group_code,
+        branch_code=params.branch_code,
         sort=params.sort,
     )
     return UnitListResponse(
@@ -71,9 +78,20 @@ def list_unit_records(session: Session, params: UnitListParams) -> UnitListRespo
     )
 
 
+def list_unit_group_records(session: Session) -> list[UnitGroupResponse]:
+    rows = list_unit_groups(session)
+    return [UnitGroupResponse(group_code=row["group_code"], total_units=row["total_units"]) for row in rows]
+
+
 def update_unit_record(session: Session, unit_id: int, payload: UnitUpdate) -> Unit:
     unit = get_unit_or_404(session, unit_id)
     changes = payload.model_dump(exclude_unset=True)
+
+    # Recompute code when group_code or branch_code are updated
+    new_group = changes.get("group_code", unit.group_code)
+    new_branch = changes.get("branch_code", unit.branch_code)
+    if ("group_code" in changes or "branch_code" in changes) and new_group and new_branch:
+        changes.setdefault("code", f"{new_group}-{new_branch}")
 
     if "code" in changes:
         normalized_code = _normalize_code(changes["code"])

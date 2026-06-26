@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { listTickets } from "../api/ticketApi";
-import { listUnits } from "../api/unitApi";
+import { getBranchesByGroup, getGroupOptions, listUnits } from "../api/unitApi";
 import TriageTicketModal from "../components/tickets/TriageTicketModal";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
@@ -34,6 +34,7 @@ const initialFilters: TicketFilters = {
   page: 1,
   page_size: 20,
   unit_id: "",
+  group_code: "",
   status: "",
   priority: "",
   severity: "",
@@ -174,7 +175,10 @@ export default function EngineeringQueuePage() {
     return () => {
       isActive = false;
     };
-  }, [canAccessPage, filters.only_late, filters.priority, filters.severity, filters.unit_id, reloadKey, token]);
+  }, [canAccessPage, filters.group_code, filters.only_late, filters.priority, filters.severity, filters.unit_id, reloadKey, token]);
+
+  const groupOptions = getGroupOptions(units);
+  const branchOptions = filters.group_code ? getBranchesByGroup(units, filters.group_code) : [];
 
   function setFilter<K extends keyof TicketFilters>(key: K, value: TicketFilters[K]) {
     setFilters((current) => ({ ...current, page: 1, [key]: value }));
@@ -238,17 +242,33 @@ export default function EngineeringQueuePage() {
       </section>
 
       <section className="panel">
-        <FilterBar columns={5} className="engineering-filters">
+        <FilterBar columns={6} className="engineering-filters">
           <label className="field">
-            <span>Unidade</span>
+            <span>Grupo</span>
+            <select
+              value={filters.group_code ?? ""}
+              onChange={(event) => {
+                setFilter("group_code", event.target.value);
+                setFilter("unit_id", "");
+              }}
+            >
+              <option value="">Todos</option>
+              {groupOptions.map((group) => (
+                <option key={group} value={group}>{group}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Filial</span>
             <select
               value={String(filters.unit_id ?? "")}
               onChange={(event) => setFilter("unit_id", event.target.value === "" ? "" : Number(event.target.value))}
             >
-              <option value="">Todas</option>
-              {units.map((unit) => (
+              <option value="">{filters.group_code ? "Todas" : "Selecione grupo"}</option>
+              {branchOptions.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  {unit.code} · {unit.name}
+                  {(unit.branch_code ?? unit.code)} — {unit.name}
                 </option>
               ))}
             </select>

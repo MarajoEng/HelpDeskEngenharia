@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { listAlerts } from "../api/alertApi";
 import { getDashboardOverview } from "../api/dashboardApi";
 import { listTicketCategories } from "../api/ticketConfigurationApi";
-import { listUnits } from "../api/unitApi";
+import { getBranchesByGroup, getGroupOptions, listUnits } from "../api/unitApi";
 import type { TicketAlert } from "../types/alert";
 import {
   PRIORITY_LABELS,
@@ -29,6 +29,7 @@ const initialFilters: DashboardFilters = {
   date_from: "",
   date_to: "",
   unit_id: "",
+  group_code: "",
   region: "",
   status: "",
   category: "",
@@ -286,6 +287,12 @@ export default function DashboardPage() {
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [units]);
 
+  const groupOptions = useMemo(() => getGroupOptions(units), [units]);
+  const branchOptions = useMemo(
+    () => (draftFilters.group_code ? getBranchesByGroup(units, draftFilters.group_code) : []),
+    [draftFilters.group_code, units],
+  );
+
   const configuredCategoryOptions = useMemo(
     () =>
       configuredCategories
@@ -378,15 +385,33 @@ export default function DashboardPage() {
 
           {!isManager ? (
             <label className="field">
-              <span>Unidade</span>
+              <span>Grupo</span>
+              <select
+                value={draftFilters.group_code ?? ""}
+                onChange={(event) => {
+                  setDraft("group_code", event.target.value);
+                  setDraft("unit_id", "");
+                }}
+              >
+                <option value="">Todos</option>
+                {groupOptions.map((group) => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {!isManager ? (
+            <label className="field">
+              <span>Filial</span>
               <select
                 value={String(draftFilters.unit_id ?? "")}
                 onChange={(event) => setDraft("unit_id", event.target.value === "" ? "" : Number(event.target.value))}
               >
-                <option value="">Todas</option>
-                {units.map((unit) => (
+                <option value="">{draftFilters.group_code ? "Todas" : "Selecione grupo"}</option>
+                {branchOptions.map((unit) => (
                   <option key={unit.id} value={unit.id}>
-                    {unit.code} · {unit.name}
+                    {(unit.branch_code ?? unit.code)} — {unit.name}
                   </option>
                 ))}
               </select>

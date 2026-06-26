@@ -79,6 +79,8 @@ def _build_filter_kwargs(filters: ReportFilters) -> dict[str, object]:
         "opened_from": filters.opened_from_datetime(),
         "opened_to": filters.opened_to_datetime(),
         "unit_id": filters.unit_id,
+        "group_code": filters.group_code,
+        "branch_code": filters.branch_code,
         "region": filters.region,
         "status": filters.status,
         "category": filters.category,

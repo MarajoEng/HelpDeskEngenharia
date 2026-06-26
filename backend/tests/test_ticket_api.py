@@ -1006,3 +1006,82 @@ async def test_ticket_detail_returns_404_for_missing_ticket(
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Ticket not found."}
+
+
+@pytest.mark.anyio
+async def test_tickets_filter_by_group_code(
+    client: httpx.AsyncClient,
+    db_session,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    from app.models.unit import Unit
+
+    seed_ticket_configurations(db_session)
+    admin = create_user(role=UserRole.ADMIN)
+
+    unit_a = Unit(code="02-4301", group_code="02", branch_code="4301", name="Filial A", city="SP", state="SP", region="Sul", is_active=True)
+    unit_b = Unit(code="09-0901", group_code="09", branch_code="0901", name="Filial B", city="AM", state="AM", region="Norte", is_active=True)
+    db_session.add_all([unit_a, unit_b])
+    db_session.commit()
+
+    r1 = await client.post("/tickets", headers=auth_header_for_user(admin), json=make_ticket_payload(unit_a.id))
+    r2 = await client.post("/tickets", headers=auth_header_for_user(admin), json=make_ticket_payload(unit_b.id))
+    assert r1.status_code == 201
+    assert r2.status_code == 201
+
+    response = await client.get("/tickets?group_code=02", headers=auth_header_for_user(admin))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["unit_id"] == unit_a.id
+
+
+@pytest.mark.anyio
+async def test_tickets_filter_by_branch_code(
+    client: httpx.AsyncClient,
+    db_session,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    from app.models.unit import Unit
+
+    seed_ticket_configurations(db_session)
+    admin = create_user(role=UserRole.ADMIN)
+
+    unit_a = Unit(code="02-4301", group_code="02", branch_code="4301", name="Filial A", city="SP", state="SP", region="Sul", is_active=True)
+    unit_b = Unit(code="02-4302", group_code="02", branch_code="4302", name="Filial B", city="SP", state="SP", region="Sul", is_active=True)
+    db_session.add_all([unit_a, unit_b])
+    db_session.commit()
+
+    r1 = await client.post("/tickets", headers=auth_header_for_user(admin), json=make_ticket_payload(unit_a.id))
+    r2 = await client.post("/tickets", headers=auth_header_for_user(admin), json=make_ticket_payload(unit_b.id))
+    assert r1.status_code == 201
+    assert r2.status_code == 201
+
+    response = await client.get("/tickets?branch_code=4301", headers=auth_header_for_user(admin))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["unit_id"] == unit_a.id
+
+
+@pytest.mark.anyio
+async def test_ticket_creation_with_unit_id_continues_working(
+    client: httpx.AsyncClient,
+    db_session,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    from app.models.unit import Unit
+
+    seed_ticket_configurations(db_session)
+    admin = create_user(role=UserRole.ADMIN)
+    unit = Unit(code="02-4301", group_code="02", branch_code="4301", name="Filial A", city="SP", state="SP", region="Sul", is_active=True)
+    db_session.add(unit)
+    db_session.commit()
+
+    response = await client.post("/tickets", headers=auth_header_for_user(admin), json=make_ticket_payload(unit.id))
+    assert response.status_code == 201
+    data = response.json()
+    assert data["unit_id"] == unit.id

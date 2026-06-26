@@ -1,5 +1,5 @@
 import { requestJson } from "./http";
-import type { Unit, UnitFilters, UnitListResponse, UnitPayload } from "../types/unit";
+import type { Unit, UnitFilters, UnitGroupOption, UnitListResponse, UnitPayload } from "../types/unit";
 
 function buildQuery(filters: UnitFilters) {
   const params = new URLSearchParams();
@@ -45,4 +45,31 @@ export function updateUnit(token: string, unitId: number, payload: Partial<UnitP
     headers: authHeaders(token),
     body: JSON.stringify(payload),
   });
+}
+
+export function listUnitGroups(token: string) {
+  return requestJson<UnitGroupOption[]>("/units/groups", {
+    headers: authHeaders(token),
+  });
+}
+
+export function getGroupOptions(units: Unit[]): string[] {
+  const seen = new Set<string>();
+  const groups: string[] = [];
+  for (const unit of units) {
+    if (unit.group_code && !seen.has(unit.group_code)) {
+      seen.add(unit.group_code);
+      groups.push(unit.group_code);
+    }
+  }
+  return groups.sort();
+}
+
+export function getBranchesByGroup(units: Unit[], group: string): Unit[] {
+  return units.filter((unit) => unit.group_code === group);
+}
+
+export function formatBranchLabel(unit: Unit): string {
+  const code = unit.branch_code ?? unit.code;
+  return `${code} — ${unit.name}`;
 }

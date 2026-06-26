@@ -237,6 +237,8 @@ class TicketListResponse(PaginatedResponse[TicketResponse]):
 
 class TicketListParams(PageParams):
     unit_id: int | None = Field(default=None, ge=1)
+    group_code: str | None = None
+    branch_code: str | None = None
     category_id: int | None = Field(default=None, ge=1)
     subcategory_id: int | None = Field(default=None, ge=1)
     type_id: int | None = Field(default=None, ge=1)
@@ -257,7 +259,7 @@ class TicketListParams(PageParams):
     max_estimated_cost: Decimal | None = Field(default=None, ge=0)
     queue: Literal["engineering"] | None = None
 
-    @field_validator("search")
+    @field_validator("search", "group_code", "branch_code")
     @classmethod
     def strip_search(cls, value: str | None) -> str | None:
         if value is None:

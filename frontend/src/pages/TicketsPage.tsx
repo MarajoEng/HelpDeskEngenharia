@@ -8,7 +8,7 @@ import {
   listTicketTypes,
 } from "../api/ticketConfigurationApi";
 import { listTickets } from "../api/ticketApi";
-import { listUnits } from "../api/unitApi";
+import { getBranchesByGroup, getGroupOptions, listUnits } from "../api/unitApi";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
@@ -31,6 +31,7 @@ const initialFilters: TicketFilters = {
   page: 1,
   page_size: 20,
   unit_id: "",
+  group_code: "",
   status: "",
   status_id: "",
   category_id: "",
@@ -194,6 +195,7 @@ export default function TicketsPage() {
     filters.status_id,
     filters.type_id,
     filters.unit_id,
+    filters.group_code,
     filters.only_late,
     filters.has_fuel_nozzles_stopped,
     filters.min_estimated_cost,
@@ -209,6 +211,12 @@ export default function TicketsPage() {
   function clearFilters() {
     setFilters(initialFilters);
   }
+
+  const groupOptions = useMemo(() => getGroupOptions(units), [units]);
+  const branchOptions = useMemo(
+    () => (filters.group_code ? getBranchesByGroup(units, filters.group_code) : []),
+    [filters.group_code, units],
+  );
 
   const selectedCategory = useMemo(
     () => categories.find((category) => category.id === filters.category_id) || null,
@@ -289,19 +297,39 @@ export default function TicketsPage() {
 
           {canFilterByUnit ? (
             <div className="flex flex-col gap-1">
-              <label htmlFor="unit-filter" className="block text-sm font-medium text-slate-700">Unidade</label>
+              <label htmlFor="group-filter" className="block text-sm font-medium text-slate-700">Grupo</label>
               <select
-                id="unit-filter"
+                id="group-filter"
+                className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                value={filters.group_code ?? ""}
+                onChange={(e) => {
+                  setFilter("group_code", e.target.value);
+                  setFilter("unit_id", "");
+                }}
+              >
+                <option value="">Todos</option>
+                {groupOptions.map((group) => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {canFilterByUnit ? (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="branch-filter" className="block text-sm font-medium text-slate-700">Filial</label>
+              <select
+                id="branch-filter"
                 className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 value={String(filters.unit_id ?? "")}
                 onChange={(e) =>
                   setFilter("unit_id", e.target.value === "" ? "" : Number(e.target.value))
                 }
               >
-                <option value="">Todas</option>
-                {units.map((unit) => (
+                <option value="">{filters.group_code ? "Todas as filiais" : "Selecione um grupo"}</option>
+                {branchOptions.map((unit) => (
                   <option key={unit.id} value={unit.id}>
-                    {unit.code} · {unit.name}
+                    {(unit.branch_code ?? unit.code)} — {unit.name}
                   </option>
                 ))}
               </select>

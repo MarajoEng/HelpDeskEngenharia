@@ -82,22 +82,25 @@ def seed_approval_levels(session) -> list[ApprovalLevel]:
 
 def seed_units(session) -> list[Unit]:
     units_data = [
-        {"code": "0101", "name": "Posto Central SP", "city": "São Paulo", "state": "SP", "region": "Sudeste"},
-        {"code": "0201", "name": "Posto Bandeirantes", "city": "Campinas", "state": "SP", "region": "Sudeste"},
-        {"code": "0301", "name": "Posto Dutra RJ", "city": "Rio de Janeiro", "state": "RJ", "region": "Sudeste"},
-        {"code": "0401", "name": "Posto Linha Amarela", "city": "Rio de Janeiro", "state": "RJ", "region": "Sudeste"},
-        {"code": "0501", "name": "Posto Pampulha", "city": "Belo Horizonte", "state": "MG", "region": "Sudeste"},
-        {"code": "0601", "name": "Posto Contorno", "city": "Contagem", "state": "MG", "region": "Sudeste"},
-        {"code": "0701", "name": "Posto BR116 Sul", "city": "Curitiba", "state": "PR", "region": "Sul"},
-        {"code": "0801", "name": "Posto Imigrantes", "city": "São Bernardo do Campo", "state": "SP", "region": "Sudeste"},
-        {"code": "0901", "name": "Posto Aeroporto", "city": "Guarulhos", "state": "SP", "region": "Sudeste"},
-        {"code": "1001", "name": "Posto Via Lagos", "city": "Cabo Frio", "state": "RJ", "region": "Sudeste"},
+        {"code": "01-0101", "group_code": "01", "branch_code": "0101", "name": "Posto Central SP", "city": "São Paulo", "state": "SP", "region": "Sudeste"},
+        {"code": "02-0201", "group_code": "02", "branch_code": "0201", "name": "Posto Bandeirantes", "city": "Campinas", "state": "SP", "region": "Sudeste"},
+        {"code": "03-0301", "group_code": "03", "branch_code": "0301", "name": "Posto Dutra RJ", "city": "Rio de Janeiro", "state": "RJ", "region": "Sudeste"},
+        {"code": "04-0401", "group_code": "04", "branch_code": "0401", "name": "Posto Linha Amarela", "city": "Rio de Janeiro", "state": "RJ", "region": "Sudeste"},
+        {"code": "05-0501", "group_code": "05", "branch_code": "0501", "name": "Posto Pampulha", "city": "Belo Horizonte", "state": "MG", "region": "Sudeste"},
+        {"code": "06-0601", "group_code": "06", "branch_code": "0601", "name": "Posto Contorno", "city": "Contagem", "state": "MG", "region": "Sudeste"},
+        {"code": "07-0701", "group_code": "07", "branch_code": "0701", "name": "Posto BR116 Sul", "city": "Curitiba", "state": "PR", "region": "Sul"},
+        {"code": "08-0801", "group_code": "08", "branch_code": "0801", "name": "Posto Imigrantes", "city": "São Bernardo do Campo", "state": "SP", "region": "Sudeste"},
+        {"code": "09-0901", "group_code": "09", "branch_code": "0901", "name": "Posto Aeroporto", "city": "Guarulhos", "state": "SP", "region": "Sudeste"},
+        {"code": "10-1001", "group_code": "10", "branch_code": "1001", "name": "Posto Via Lagos", "city": "Cabo Frio", "state": "RJ", "region": "Sudeste"},
     ]
 
     units = []
     for data in units_data:
-        stmt = select(Unit).where(Unit.code == data["code"])
-        unit = session.scalar(stmt)
+        # Try new code first (idempotent on repeated runs)
+        unit = session.scalar(select(Unit).where(Unit.code == data["code"]))
+        if not unit and data.get("branch_code"):
+            # Fallback: find by old legacy code (branch_code) for initial migration
+            unit = session.scalar(select(Unit).where(Unit.code == data["branch_code"]))
         if not unit:
             unit = Unit(**data, is_active=True)
             session.add(unit)

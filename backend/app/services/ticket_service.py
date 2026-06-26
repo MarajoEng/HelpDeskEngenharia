@@ -1048,6 +1048,8 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
     total = count_tickets(
         session,
         unit_id=scoped_params.unit_id,
+        group_code=scoped_params.group_code,
+        branch_code=scoped_params.branch_code,
         category_id=scoped_params.category_id,
         subcategory_id=scoped_params.subcategory_id,
         type_id=scoped_params.type_id,
@@ -1074,6 +1076,8 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         page=scoped_params.page,
         page_size=scoped_params.page_size,
         unit_id=scoped_params.unit_id,
+        group_code=scoped_params.group_code,
+        branch_code=scoped_params.branch_code,
         category_id=scoped_params.category_id,
         subcategory_id=scoped_params.subcategory_id,
         type_id=scoped_params.type_id,

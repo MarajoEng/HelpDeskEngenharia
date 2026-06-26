@@ -15,7 +15,7 @@ import {
   listTicketReport,
   listUnitReport,
 } from "../api/reportApi";
-import { getUnitById, listUnits } from "../api/unitApi";
+import { getBranchesByGroup, getGroupOptions, getUnitById, listUnits } from "../api/unitApi";
 import { listSuppliers } from "../api/supplierApi";
 import Badge from "../components/ui/Badge";
 import EmptyState from "../components/ui/EmptyState";
@@ -176,6 +176,7 @@ const initialFilters: ReportFilters = {
   date_from: "",
   date_to: "",
   unit_id: "",
+  group_code: "",
   region: "",
   status: "",
   category: "",
@@ -331,6 +332,12 @@ export default function ReportsPage() {
 
     return getVisiblePages(data.page, data.pages);
   }, [data]);
+
+  const groupOptions = useMemo(() => getGroupOptions(units), [units]);
+  const branchOptions = useMemo(
+    () => (draftFilters.group_code ? getBranchesByGroup(units, draftFilters.group_code) : []),
+    [draftFilters.group_code, units],
+  );
 
   useEffect(() => {
     if (!token || !user || user.role === "supplier") return;
@@ -543,8 +550,8 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={`ticket-${item.id}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+            {items.map((item, index) => (
+              <tr key={`ticket-${item.id}-${index}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 <td className="py-3 px-4 text-slate-600 font-mono text-[13px]">{item.ticket_number}</td>
                 <td className="py-3 px-4 text-slate-600">{item.unit_name}</td>
                 <td className="py-3 px-4">
@@ -588,8 +595,8 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={`cost-${item.unit_id}-${item.category_id ?? item.category}-${item.supplier_id ?? "none"}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+            {items.map((item, index) => (
+              <tr key={`cost-${item.unit_id}-${item.category_id ?? item.category}-${item.supplier_id ?? "none"}-${index}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 <td className="py-3 px-4">
                   <strong className="block text-slate-900">{item.unit_code}</strong>
                   <div className="text-[13px] text-slate-500">{item.unit_name}</div>
@@ -622,10 +629,10 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
+            {items.map((item, index) => {
               const rate = toNumberSafe(item.compliance_rate);
               return (
-                <tr key={`sla-${item.unit_id}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <tr key={`sla-${item.unit_id}-${index}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                   <td className="py-3 px-4">
                     <strong className="block text-slate-900">{item.unit_code}</strong>
                     <div className="text-[13px] text-slate-500">{item.unit_name}</div>
@@ -661,8 +668,8 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={`units-${item.unit_id}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+            {items.map((item, index) => (
+              <tr key={`units-${item.unit_id}-${index}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 <td className="py-3 px-4">
                   <strong className="block text-slate-900">{item.unit_code}</strong>
                   <div className="text-[13px] text-slate-500">{item.unit_name}</div>
@@ -692,8 +699,8 @@ export default function ReportsPage() {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={`suppliers-${item.supplier_id}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+          {items.map((item, index) => (
+            <tr key={`suppliers-${item.supplier_id}-${index}`} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
               <td className="py-3 px-4 text-slate-600">{item.supplier_name ?? "—"}</td>
               <td className="py-3 px-4 text-slate-600">{item.total_tickets}</td>
               <td className="py-3 px-4 text-slate-600">{item.in_progress_tickets}</td>
@@ -755,7 +762,7 @@ export default function ReportsPage() {
 
       {/* Filters Area */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           <label className="field">
             <span className="flex items-center gap-2">
               <CalendarIcon />
@@ -780,16 +787,35 @@ export default function ReportsPage() {
           <label className="field">
             <span className="flex items-center gap-2">
               <BuildingIcon />
-              Unidade
+              Grupo
+            </span>
+            <select
+              value={draftFilters.group_code ?? ""}
+              onChange={(event) => {
+                setDraft("group_code", event.target.value);
+                setDraft("unit_id", "");
+              }}
+            >
+              <option value="">Todos os grupos</option>
+              {groupOptions.map((group) => (
+                <option key={group} value={group}>{group}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span className="flex items-center gap-2">
+              <BuildingIcon />
+              Filial
             </span>
             <select
               value={String(draftFilters.unit_id ?? "")}
               onChange={(event) => setDraft("unit_id", event.target.value === "" ? "" : Number(event.target.value))}
             >
-              <option value="">Todas as unidades</option>
-              {units.map((unit) => (
+              <option value="">{draftFilters.group_code ? "Todas as filiais" : "Selecione um grupo"}</option>
+              {branchOptions.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  {unit.code} · {unit.name}
+                  {(unit.branch_code ?? unit.code)} — {unit.name}
                 </option>
               ))}
             </select>
@@ -925,8 +951,8 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {reportType === "tickets" && (
           <>
-            <StatCard label="Total de chamados" value={stats ? stats.total.toLocaleString("pt-BR") : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
-            <StatCard label="Atrasados" value={stats ? stats.atrasados.toString() : "Sem dados"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
+            <StatCard label="Total de chamados" value={stats ? (stats.total ?? 0).toLocaleString("pt-BR") : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
+            <StatCard label="Atrasados" value={stats ? String(stats.atrasados ?? 0) : "Sem dados"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
             <StatCard label="Custo final" value={stats ? formatMoney(stats.custoFinal) : "Sem dados"} trendDirection="neutral" icon={<BigDollarIcon />} iconBgColor="bg-[#fffbeb]" iconColor="text-[#d97706]" />
             <StatCard label="SLA no prazo" value={stats ? formatPercentDisplay(stats.slaNoPrazo) : "Sem dados"} trendDirection="neutral" icon={<ShieldCheckIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
           </>
@@ -936,21 +962,21 @@ export default function ReportsPage() {
             <StatCard label="Custo Estimado" value={dashboardData ? formatMoney(dashboardData.estimated_cost_total) : "Sem dados"} trendDirection="neutral" icon={<BigDollarIcon />} iconBgColor="bg-[#f8fafc]" iconColor="text-[#64748b]" />
             <StatCard label="Custo Aprovado" value={dashboardData ? formatMoney(dashboardData.approved_cost_total) : "Sem dados"} trendDirection="neutral" icon={<BigDollarIcon />} iconBgColor="bg-[#eff6ff]" iconColor="text-[#3b82f6]" />
             <StatCard label="Custo Final" value={dashboardData ? formatMoney(dashboardData.final_cost_total) : "Sem dados"} trendDirection="neutral" icon={<BigDollarIcon />} iconBgColor="bg-[#fffbeb]" iconColor="text-[#d97706]" />
-            <StatCard label="Total de chamados" value={dashboardData ? dashboardData.total_tickets.toString() : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
+            <StatCard label="Total de chamados" value={dashboardData ? String(dashboardData.total_tickets ?? 0) : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
           </>
         )}
         {reportType === "sla" && (
           <>
-            <StatCard label="Chamados com SLA" value={dashboardData ? dashboardData.sla_summary.total_with_sla.toString() : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#eff6ff]" iconColor="text-[#3b82f6]" />
-            <StatCard label="No prazo" value={dashboardData ? dashboardData.sla_summary.on_track.toString() : "Sem dados"} trendDirection="neutral" icon={<ShieldCheckIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
-            <StatCard label="Atrasados" value={dashboardData ? dashboardData.sla_summary.late.toString() : "Sem dados"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
-            <StatCard label="Taxa de cumprimento" value={dashboardData ? formatPercentDisplay(dashboardData.sla_summary.compliance_rate) : "Sem dados"} trendDirection="neutral" icon={<ChartIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
+            <StatCard label="Chamados com SLA" value={dashboardData ? String(dashboardData.sla_summary?.total_with_sla ?? 0) : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#eff6ff]" iconColor="text-[#3b82f6]" />
+            <StatCard label="No prazo" value={dashboardData ? String(dashboardData.sla_summary?.on_track ?? 0) : "Sem dados"} trendDirection="neutral" icon={<ShieldCheckIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
+            <StatCard label="Atrasados" value={dashboardData ? String(dashboardData.sla_summary?.late ?? 0) : "Sem dados"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
+            <StatCard label="Taxa de cumprimento" value={dashboardData ? formatPercentDisplay(dashboardData.sla_summary?.compliance_rate) : "Sem dados"} trendDirection="neutral" icon={<ChartIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
           </>
         )}
         {reportType === "units" && (
           <>
-            <StatCard label="Total de chamados" value={dashboardData ? dashboardData.total_tickets.toLocaleString("pt-BR") : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
-            <StatCard label="Atrasados" value={dashboardData ? dashboardData.late_tickets.toString() : "Sem dados"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
+            <StatCard label="Total de chamados" value={dashboardData ? (dashboardData.total_tickets ?? 0).toLocaleString("pt-BR") : "Sem dados"} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
+            <StatCard label="Atrasados" value={dashboardData ? String(dashboardData.late_tickets ?? 0) : "Sem dados"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
             <StatCard label="Custo final" value={dashboardData ? formatMoney(dashboardData.final_cost_total) : "Sem dados"} trendDirection="neutral" icon={<BigDollarIcon />} iconBgColor="bg-[#fffbeb]" iconColor="text-[#d97706]" />
             <StatCard label="SLA no prazo" value={dashboardData ? formatPercentDisplay(dashboardData.sla_compliance_rate) : "Sem dados"} trendDirection="neutral" icon={<ShieldCheckIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
           </>
@@ -965,10 +991,10 @@ export default function ReportsPage() {
 
             return (
               <>
-                <StatCard label="Fornecedores na visão" value={activeCount.toString()} trendDirection="neutral" icon={<BuildingIcon />} iconBgColor="bg-[#eff6ff]" iconColor="text-[#3b82f6]" />
+                <StatCard label="Fornecedores na visão" value={String(activeCount)} trendDirection="neutral" icon={<BuildingIcon />} iconBgColor="bg-[#eff6ff]" iconColor="text-[#3b82f6]" />
                 <StatCard label="Maior Custo" value={Number(topCost.final_cost_total) > 0 ? formatMoney(topCost.final_cost_total) : "Sem dados"} description={topCost.supplier_name || "Nenhum"} trendDirection="neutral" icon={<BigDollarIcon />} iconBgColor="bg-[#fffbeb]" iconColor="text-[#d97706]" />
-                <StatCard label="Mais Atrasos" value={topLate.late_execution_tickets.toString()} description={topLate.supplier_name || "Nenhum"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
-                <StatCard label="Em andamento" value={totalInProgress.toString()} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
+                <StatCard label="Mais Atrasos" value={String(topLate.late_execution_tickets ?? 0)} description={topLate.supplier_name || "Nenhum"} trendDirection="neutral" icon={<ClockIcon />} iconBgColor="bg-[#fef2f2]" iconColor="text-[#dc2626]" />
+                <StatCard label="Em andamento" value={String(totalInProgress ?? 0)} trendDirection="neutral" icon={<DocumentIcon />} iconBgColor="bg-[#f0fdf4]" iconColor="text-[#16a34a]" />
               </>
             );
           })()
@@ -1016,7 +1042,7 @@ export default function ReportsPage() {
           {data && (
             <div className="flex flex-col gap-3 rounded-b-2xl border-t border-slate-200 bg-slate-50/50 p-4 text-[13px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                Mostrando {Math.max(1, (data.page - 1) * data.page_size + 1)} a {Math.min(data.page * data.page_size, data.total)} de {data.total.toLocaleString("pt-BR")} resultados
+                Mostrando {Math.max(1, (data.page - 1) * data.page_size + 1)} a {Math.min(data.page * data.page_size, data.total ?? 0)} de {(data.total ?? 0).toLocaleString("pt-BR")} resultados
               </div>
               <div className="flex flex-wrap items-center gap-1">
                 <button

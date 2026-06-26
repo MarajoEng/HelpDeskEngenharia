@@ -313,6 +313,8 @@ export interface TicketFilters {
   page?: number;
   page_size?: number;
   unit_id?: number | "";
+  group_code?: string;
+  branch_code?: string;
   status?: TicketStatus | "";
   status_id?: number | "";
   category?: TicketCategory | "";

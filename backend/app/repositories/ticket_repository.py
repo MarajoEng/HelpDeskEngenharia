@@ -64,6 +64,8 @@ def _apply_ticket_filters(
     statement: Select[tuple[Ticket]] | Select[tuple[int]],
     *,
     unit_id: int | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
     category_id: int | None = None,
     subcategory_id: int | None = None,
     type_id: int | None = None,
@@ -87,6 +89,12 @@ def _apply_ticket_filters(
 ) -> Select[tuple[Ticket]] | Select[tuple[int]]:
     if unit_id is not None:
         statement = statement.where(Ticket.unit_id == unit_id)
+    if group_code is not None:
+        unit_subquery = select(Unit.id).where(Unit.group_code == group_code)
+        statement = statement.where(Ticket.unit_id.in_(unit_subquery))
+    if branch_code is not None:
+        unit_subquery = select(Unit.id).where(Unit.branch_code == branch_code)
+        statement = statement.where(Ticket.unit_id.in_(unit_subquery))
     if category_id is not None:
         if category_legacy_value is not None:
             statement = statement.where(
@@ -230,6 +238,8 @@ def list_tickets(
     page: int,
     page_size: int,
     unit_id: int | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
     category_id: int | None = None,
     subcategory_id: int | None = None,
     type_id: int | None = None,
@@ -255,6 +265,8 @@ def list_tickets(
     statement = _apply_ticket_filters(
         statement,
         unit_id=unit_id,
+        group_code=group_code,
+        branch_code=branch_code,
         category_id=category_id,
         subcategory_id=subcategory_id,
         type_id=type_id,
@@ -285,6 +297,8 @@ def count_tickets(
     session: Session,
     *,
     unit_id: int | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
     category_id: int | None = None,
     subcategory_id: int | None = None,
     type_id: int | None = None,
@@ -310,6 +324,8 @@ def count_tickets(
     statement = _apply_ticket_filters(
         statement,
         unit_id=unit_id,
+        group_code=group_code,
+        branch_code=branch_code,
         category_id=category_id,
         subcategory_id=subcategory_id,
         type_id=type_id,

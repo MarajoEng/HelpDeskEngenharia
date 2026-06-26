@@ -26,7 +26,8 @@ const initialFilters: UnitFilters = {
 };
 
 const initialForm: UnitPayload = {
-  code: "",
+  group_code: "",
+  branch_code: "",
   name: "",
   city: "",
   state: "",
@@ -84,7 +85,8 @@ export default function UnitsPage() {
   function openEditModal(unit: Unit) {
     setEditingUnit(unit);
     setForm({
-      code: unit.code,
+      group_code: unit.group_code ?? "",
+      branch_code: unit.branch_code ?? "",
       name: unit.name,
       city: unit.city,
       state: unit.state,
@@ -132,7 +134,7 @@ export default function UnitsPage() {
       {canManage ? (
         <div className="flex justify-end">
           <Button variant="primary" type="button" onClick={openCreateModal}>
-            Nova unidade
+            Nova filial
           </Button>
         </div>
       ) : null}
@@ -145,7 +147,7 @@ export default function UnitsPage() {
             onChange={(event) =>
               setFilters((current) => ({ ...current, page: 1, search: event.target.value }))
             }
-            placeholder="Code, nome, cidade ou regiao"
+            placeholder="Grupo, filial, nome, cidade ou região"
           />
 
           <Input
@@ -185,30 +187,32 @@ export default function UnitsPage() {
           </Select>
         </FilterBar>
 
-        {isLoading ? <LoadingState title="Carregando unidades" /> : null}
+        {isLoading ? <LoadingState title="Carregando filiais" /> : null}
         {!isLoading && errorMessage ? <ErrorState description={errorMessage} /> : null}
         {!isLoading && !errorMessage && data.items.length === 0 ? (
-          <EmptyState title="Nenhuma unidade encontrada" description={LIST_EMPTY_MESSAGES.units} />
+          <EmptyState title="Nenhuma filial encontrada" description={LIST_EMPTY_MESSAGES.units} />
         ) : null}
 
         {!isLoading && !errorMessage && data.items.length > 0 ? (
           <>
-            <Table minWidth={860}>
+            <Table minWidth={960}>
               <thead>
                 <tr>
-                  <th>Code</th>
+                  <th>Grupo</th>
+                  <th>Filial</th>
                   <th>Nome</th>
                   <th>Cidade</th>
                   <th>UF</th>
-                  <th>Regiao</th>
+                  <th>Região</th>
                   <th>Status</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((unit) => (
                   <tr key={unit.id}>
-                    <td>{unit.code}</td>
+                    <td>{unit.group_code ?? "—"}</td>
+                    <td>{unit.branch_code ?? unit.code}</td>
                     <td>{unit.name}</td>
                     <td>{unit.city}</td>
                     <td>{unit.state}</td>
@@ -245,15 +249,23 @@ export default function UnitsPage() {
 
       {isModalOpen ? (
         <Modal
-          title={editingUnit ? "Editar unidade" : "Nova unidade"}
-          subtitle="Cadastro administrativo de unidade operacional."
+          title={editingUnit ? "Editar filial" : "Nova filial"}
+          subtitle="Cadastro administrativo de filial operacional."
           onClose={closeModal}
         >
           <form className="form-grid" onSubmit={handleSubmit}>
             <Input
-              label="Code"
-              value={form.code}
-              onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
+              label="Grupo"
+              value={form.group_code}
+              onChange={(event) => setForm((current) => ({ ...current, group_code: event.target.value }))}
+              placeholder="02"
+              required
+            />
+            <Input
+              label="Filial"
+              value={form.branch_code}
+              onChange={(event) => setForm((current) => ({ ...current, branch_code: event.target.value }))}
+              placeholder="4301"
               required
             />
             <Input
@@ -287,7 +299,7 @@ export default function UnitsPage() {
                 type="checkbox"
                 onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
               />
-              <span>Unidade ativa</span>
+              <span>Filial ativa</span>
             </label>
 
             {formError ? <div className="form-message form-message--error">{formError}</div> : null}
@@ -297,7 +309,7 @@ export default function UnitsPage() {
                 Cancelar
               </Button>
               <Button variant="primary" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Salvando..." : editingUnit ? "Salvar alteracoes" : "Criar unidade"}
+                {isSubmitting ? "Salvando..." : editingUnit ? "Salvar alteracoes" : "Criar filial"}
               </Button>
             </div>
           </form>

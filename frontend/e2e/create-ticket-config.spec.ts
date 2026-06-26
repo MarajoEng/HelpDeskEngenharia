@@ -11,7 +11,8 @@ test("CreateTicketPage carrega configuracoes reais e atualiza subcategorias por 
   await expect(page.getByLabel("Tipo de chamado")).toContainText("Preventiva");
   await expect(page.getByText("Pressao da linha")).toBeVisible();
 
-  await page.getByLabel("Unidade").selectOption("1");
+  await page.getByLabel("Grupo").selectOption("01");
+  await page.getByLabel("Filial").selectOption("1");
   await page.getByLabel("Categoria", { exact: true }).selectOption("2");
   await expect(page.getByLabel("Subcategoria", { exact: true })).toContainText("Quadro eletrico");
   await expect(page.getByLabel("Tipo de chamado")).not.toContainText("Preventiva");

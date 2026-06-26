@@ -9,7 +9,7 @@ import {
   listTicketTypes,
 } from "../api/ticketConfigurationApi";
 import { createTicket } from "../api/ticketApi";
-import { getUnitById, listUnits } from "../api/unitApi";
+import { getBranchesByGroup, getGroupOptions, getUnitById, listUnits } from "../api/unitApi";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
@@ -106,6 +106,7 @@ function preferredConfigId<T extends { id: number; legacy_value?: string | null 
 export default function CreateTicketPage() {
   const { token, user } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [categories, setCategories] = useState<TicketCategoryItem[]>([]);
   const [subcategories, setSubcategories] = useState<TicketSubcategoryItem[]>([]);
   const [ticketTypes, setTicketTypes] = useState<TicketTypeItem[]>([]);
@@ -162,6 +163,9 @@ export default function CreateTicketPage() {
         setCategories(categoriesResponse.items);
         setTicketTypes(typesResponse.items);
         setPriorities(prioritiesResponse.items);
+        if (user.role === "manager" && loadedUnits[0]?.group_code) {
+          setSelectedGroup(loadedUnits[0].group_code);
+        }
         setForm((current) => ({
           ...current,
           unit_id:
@@ -303,6 +307,12 @@ export default function CreateTicketPage() {
   const selectedUnit = useMemo(
     () => units.find((unit) => String(unit.id) === form.unit_id) || null,
     [form.unit_id, units],
+  );
+
+  const groupOptions = useMemo(() => getGroupOptions(units), [units]);
+  const branchOptions = useMemo(
+    () => (selectedGroup ? getBranchesByGroup(units, selectedGroup) : []),
+    [selectedGroup, units],
   );
 
   const selectedCategory = useMemo(
@@ -589,16 +599,34 @@ export default function CreateTicketPage() {
           <form className="form-grid" onSubmit={handleSubmit}>
             <div className="ticket-grid">
               <Select
-                label="Unidade"
-                value={form.unit_id}
-                onChange={(event) => setForm((current) => ({ ...current, unit_id: event.target.value }))}
+                label="Grupo"
+                value={selectedGroup}
+                onChange={(event) => {
+                  setSelectedGroup(event.target.value);
+                  setForm((current) => ({ ...current, unit_id: "" }));
+                }}
                 disabled={isLoadingPage || isManager}
                 required
               >
-                <option value="">{isLoadingPage ? "Carregando..." : "Selecione"}</option>
-                {units.map((unit) => (
+                <option value="">{isLoadingPage ? "Carregando..." : "Selecione o grupo"}</option>
+                {groupOptions.map((group) => (
+                  <option key={group} value={group}>
+                    {group}
+                  </option>
+                ))}
+              </Select>
+
+              <Select
+                label="Filial"
+                value={form.unit_id}
+                onChange={(event) => setForm((current) => ({ ...current, unit_id: event.target.value }))}
+                disabled={isLoadingPage || isManager || !selectedGroup}
+                required
+              >
+                <option value="">{!selectedGroup ? "Selecione o grupo primeiro" : "Selecione a filial"}</option>
+                {branchOptions.map((unit) => (
                   <option key={unit.id} value={unit.id}>
-                    {unitLabel(unit)}
+                    {(unit.branch_code ?? unit.code)} — {unit.name}
                   </option>
                 ))}
               </Select>

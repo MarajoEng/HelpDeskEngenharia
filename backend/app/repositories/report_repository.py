@@ -70,6 +70,8 @@ def _apply_report_filters(
     opened_from: datetime | None = None,
     opened_to: datetime | None = None,
     unit_id: int | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
@@ -91,6 +93,10 @@ def _apply_report_filters(
         statement = statement.where(Ticket.opened_at <= opened_to)
     if unit_id is not None:
         statement = statement.where(Ticket.unit_id == unit_id)
+    if group_code is not None:
+        statement = statement.where(Unit.group_code == group_code)
+    if branch_code is not None:
+        statement = statement.where(Unit.branch_code == branch_code)
     if region:
         statement = statement.where(Unit.region.ilike(f"%{region}%"))
     if status is not None:
@@ -133,6 +139,8 @@ def _build_ticket_report_subquery(
     opened_from: datetime | None = None,
     opened_to: datetime | None = None,
     unit_id: int | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
     region: str | None = None,
     status: str | None = None,
     category: str | None = None,
@@ -236,6 +244,8 @@ def _build_ticket_report_subquery(
         opened_from=opened_from,
         opened_to=opened_to,
         unit_id=unit_id,
+        group_code=group_code,
+        branch_code=branch_code,
         region=region,
         status=status,
         category=category,

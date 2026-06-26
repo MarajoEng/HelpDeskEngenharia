@@ -17,11 +17,13 @@ export async function resetBrowserState(page: Page) {
 const units = [
   {
     id: 1,
-    code: "U-001",
+    code: "01-001",
     name: "Unidade Centro",
     city: "Sao Paulo",
     state: "SP",
     region: "Sudeste",
+    group_code: "01",
+    branch_code: "001",
     is_active: true,
     created_at: "2026-06-25T12:00:00Z",
     updated_at: "2026-06-25T12:00:00Z",
@@ -264,7 +266,7 @@ const ticketSummary = {
   created_at: "2026-06-25T12:00:00Z",
   updated_at: "2026-06-25T12:00:00Z",
   unit_name: "Unidade Centro",
-  unit_code: "U-001",
+  unit_code: "01-001",
   opened_by_user_name: "Admin Local",
   assigned_to_user_name: null,
   supplier_name: null,
@@ -350,7 +352,7 @@ function dashboardOverview() {
     ranking_units_by_tickets: [
       {
         unit_id: 1,
-        unit_code: "U-001",
+        unit_code: "01-001",
         unit_name: "Unidade Centro",
         total_tickets: 1,
         late_tickets: 0,
@@ -360,7 +362,7 @@ function dashboardOverview() {
     ranking_units_by_cost: [
       {
         unit_id: 1,
-        unit_code: "U-001",
+        unit_code: "01-001",
         unit_name: "Unidade Centro",
         estimated_cost_total: 8000,
         final_cost_total: 0,
@@ -369,7 +371,7 @@ function dashboardOverview() {
     ranking_units_by_fuel_nozzles: [
       {
         unit_id: 1,
-        unit_code: "U-001",
+        unit_code: "01-001",
         unit_name: "Unidade Centro",
         total_fuel_nozzles_stopped: 2,
         estimated_daily_loss_total: 1500,
@@ -531,6 +533,11 @@ async function mockPortalApi(page: Page) {
 
     if (pathname === "/units") {
       await fulfillJson(route, pageResponse(units));
+      return;
+    }
+
+    if (pathname === "/units/groups") {
+      await fulfillJson(route, [{ group_code: "01", total_units: 1 }]);
       return;
     }
 

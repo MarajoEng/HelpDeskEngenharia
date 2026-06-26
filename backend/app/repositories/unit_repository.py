@@ -13,12 +13,16 @@ def _apply_unit_filters(
     is_active: bool | None = None,
     state: str | None = None,
     region: str | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
 ) -> Select[tuple[Unit]] | Select[tuple[int]]:
     if search:
         pattern = f"%{search.strip()}%"
         statement = statement.where(
             or_(
                 Unit.code.ilike(pattern),
+                Unit.group_code.ilike(pattern),
+                Unit.branch_code.ilike(pattern),
                 Unit.name.ilike(pattern),
                 Unit.city.ilike(pattern),
                 Unit.region.ilike(pattern),
@@ -34,6 +38,12 @@ def _apply_unit_filters(
     if region:
         statement = statement.where(Unit.region.ilike(f"%{region.strip()}%"))
 
+    if group_code:
+        statement = statement.where(Unit.group_code == group_code.strip())
+
+    if branch_code:
+        statement = statement.where(Unit.branch_code == branch_code.strip())
+
     return statement
 
 
@@ -41,6 +51,8 @@ def create_unit(
     session: Session,
     *,
     code: str,
+    group_code: str | None = None,
+    branch_code: str | None = None,
     name: str,
     city: str,
     state: str,
@@ -49,6 +61,8 @@ def create_unit(
 ) -> Unit:
     unit = Unit(
         code=code,
+        group_code=group_code,
+        branch_code=branch_code,
         name=name,
         city=city,
         state=state,
@@ -80,6 +94,8 @@ def list_units(
     is_active: bool | None = None,
     state: str | None = None,
     region: str | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
     sort: str = "name_asc",
 ) -> list[Unit]:
     statement = select(Unit)
@@ -89,6 +105,8 @@ def list_units(
         is_active=is_active,
         state=state,
         region=region,
+        group_code=group_code,
+        branch_code=branch_code,
     )
 
     if sort == "created_at_desc":
@@ -107,6 +125,8 @@ def count_units(
     is_active: bool | None = None,
     state: str | None = None,
     region: str | None = None,
+    group_code: str | None = None,
+    branch_code: str | None = None,
 ) -> int:
     statement = select(func.count()).select_from(Unit)
     statement = _apply_unit_filters(
@@ -115,8 +135,23 @@ def count_units(
         is_active=is_active,
         state=state,
         region=region,
+        group_code=group_code,
+        branch_code=branch_code,
     )
     return int(session.scalar(statement) or 0)
+
+
+def list_unit_groups(session: Session) -> list[dict[str, object]]:
+    statement = (
+        select(
+            Unit.group_code.label("group_code"),
+            func.count(Unit.id).label("total_units"),
+        )
+        .where(Unit.group_code.is_not(None))
+        .group_by(Unit.group_code)
+        .order_by(Unit.group_code.asc())
+    )
+    return [{"group_code": row.group_code, "total_units": row.total_units} for row in session.execute(statement).all()]
 
 
 def update_unit(session: Session, unit: Unit, **changes: object) -> Unit:

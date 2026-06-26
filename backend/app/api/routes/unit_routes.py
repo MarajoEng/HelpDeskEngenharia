@@ -10,9 +10,10 @@ from app.core.database import get_db_session
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas import UnitCreate, UnitListParams, UnitListResponse, UnitResponse, UnitUpdate
+from app.schemas.unit import UnitGroupResponse
 from app.services.audit_service import log_action
 from app.services.exceptions import ServiceError
-from app.services.unit_service import create_unit_record, get_unit_or_404, list_unit_records, update_unit_record
+from app.services.unit_service import create_unit_record, get_unit_or_404, list_unit_group_records, list_unit_records, update_unit_record
 
 
 router = APIRouter(prefix="/units", tags=["units"])
@@ -29,6 +30,8 @@ def _build_list_params(
     is_active: bool | None = Query(default=None),
     state: str | None = Query(default=None, min_length=2, max_length=2),
     region: str | None = Query(default=None),
+    group_code: str | None = Query(default=None),
+    branch_code: str | None = Query(default=None),
     sort: Literal["name_asc", "created_at_desc"] = Query(default="name_asc"),
 ) -> UnitListParams:
     return UnitListParams(
@@ -38,8 +41,18 @@ def _build_list_params(
         is_active=is_active,
         state=state,
         region=region,
+        group_code=group_code,
+        branch_code=branch_code,
         sort=sort,
     )
+
+
+@router.get("/groups", response_model=list[UnitGroupResponse])
+def read_unit_groups(
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.ENGINEERING, UserRole.DIRECTOR, UserRole.MANAGER)),
+    session: Session = Depends(get_db_session),
+) -> list[UnitGroupResponse]:
+    return list_unit_group_records(session)
 
 
 @router.get("", response_model=UnitListResponse)

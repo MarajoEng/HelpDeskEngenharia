@@ -9,6 +9,8 @@ export interface ReportFilters {
   date_from?: string;
   date_to?: string;
   unit_id?: number | "";
+  group_code?: string;
+  branch_code?: string;
   region?: string;
   status?: TicketStatus | "";
   category?: TicketCategory | "";

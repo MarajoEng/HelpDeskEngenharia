@@ -575,3 +575,129 @@ async def test_report_view_creates_audit_log(
     logs = _audit_logs_for(db_session, "report_viewed")
     assert len(logs) >= 1
     assert logs[-1].metadata_json["report_type"] == "units"
+
+
+@pytest.mark.anyio
+async def test_ticket_report_filters_by_group_code(
+    client: httpx.AsyncClient,
+    db_session: Session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    from app.models.unit import Unit
+
+    seed_ticket_configurations(db_session)
+    admin = create_user(role=UserRole.ADMIN)
+
+    unit_a = Unit(code="02-4301", group_code="02", branch_code="4301", name="Filial A", city="SP", state="SP", region="Sul", is_active=True)
+    unit_b = Unit(code="09-0901", group_code="09", branch_code="0901", name="Filial B", city="AM", state="AM", region="Norte", is_active=True)
+    db_session.add_all([unit_a, unit_b])
+    db_session.commit()
+
+    now = datetime.now(UTC)
+    ticket_a = Ticket(
+        ticket_number="GRP-0201",
+        unit_id=unit_a.id,
+        opened_by_user_id=admin.id,
+        category="fuel_pump",
+        problem_type="Falha",
+        title="Ticket Grupo 02",
+        description="Desc",
+        priority="high",
+        severity="critical",
+        operational_impact="Alto",
+        opened_at=now,
+        fuel_nozzles_stopped=1,
+        estimated_daily_loss=Decimal("500.00"),
+        estimated_cost=Decimal("1000.00"),
+        requires_approval=False,
+    )
+    ticket_b = Ticket(
+        ticket_number="GRP-0901",
+        unit_id=unit_b.id,
+        opened_by_user_id=admin.id,
+        category="fuel_pump",
+        problem_type="Falha",
+        title="Ticket Grupo 09",
+        description="Desc",
+        priority="medium",
+        severity="high",
+        operational_impact="Medio",
+        opened_at=now,
+        fuel_nozzles_stopped=0,
+        estimated_daily_loss=Decimal("200.00"),
+        estimated_cost=Decimal("600.00"),
+        requires_approval=False,
+    )
+    db_session.add_all([ticket_a, ticket_b])
+    db_session.commit()
+
+    response = await client.get("/reports/tickets?group_code=02", headers=auth_header_for_user(admin))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["unit_code"] == "02-4301"
+
+
+@pytest.mark.anyio
+async def test_ticket_report_filters_by_branch_code(
+    client: httpx.AsyncClient,
+    db_session: Session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    from app.models.unit import Unit
+
+    seed_ticket_configurations(db_session)
+    admin = create_user(role=UserRole.ADMIN)
+
+    unit_a = Unit(code="02-4301", group_code="02", branch_code="4301", name="Filial A", city="SP", state="SP", region="Sul", is_active=True)
+    unit_b = Unit(code="02-4302", group_code="02", branch_code="4302", name="Filial B", city="SP", state="SP", region="Sul", is_active=True)
+    db_session.add_all([unit_a, unit_b])
+    db_session.commit()
+
+    now = datetime.now(UTC)
+    ticket_a = Ticket(
+        ticket_number="BCH-4301",
+        unit_id=unit_a.id,
+        opened_by_user_id=admin.id,
+        category="fuel_pump",
+        problem_type="Falha",
+        title="Ticket 4301",
+        description="Desc",
+        priority="high",
+        severity="critical",
+        operational_impact="Alto",
+        opened_at=now,
+        fuel_nozzles_stopped=1,
+        estimated_daily_loss=Decimal("500.00"),
+        estimated_cost=Decimal("1000.00"),
+        requires_approval=False,
+    )
+    ticket_b = Ticket(
+        ticket_number="BCH-4302",
+        unit_id=unit_b.id,
+        opened_by_user_id=admin.id,
+        category="fuel_pump",
+        problem_type="Falha",
+        title="Ticket 4302",
+        description="Desc",
+        priority="medium",
+        severity="high",
+        operational_impact="Medio",
+        opened_at=now,
+        fuel_nozzles_stopped=0,
+        estimated_daily_loss=Decimal("200.00"),
+        estimated_cost=Decimal("600.00"),
+        requires_approval=False,
+    )
+    db_session.add_all([ticket_a, ticket_b])
+    db_session.commit()
+
+    response = await client.get("/reports/tickets?branch_code=4301", headers=auth_header_for_user(admin))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["unit_code"] == "02-4301"

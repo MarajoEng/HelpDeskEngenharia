@@ -86,6 +86,7 @@ def get_dashboard_overview(
         "opened_from": scoped_params.opened_from_datetime(),
         "opened_to": scoped_params.opened_to_datetime(),
         "unit_id": scoped_params.unit_id,
+        "group_code": scoped_params.group_code,
         "region": scoped_params.region,
         "status": scoped_params.status,
         "category": scoped_params.category,

@@ -3,6 +3,8 @@ import type { PaginatedResponse } from "./pagination";
 export interface Unit {
   id: number;
   code: string;
+  group_code: string | null;
+  branch_code: string | null;
   name: string;
   city: string;
   state: string;
@@ -13,7 +15,8 @@ export interface Unit {
 }
 
 export interface UnitPayload {
-  code: string;
+  group_code: string;
+  branch_code: string;
   name: string;
   city: string;
   state: string;
@@ -28,7 +31,14 @@ export interface UnitFilters {
   is_active?: boolean | "";
   state?: string;
   region?: string;
+  group_code?: string;
+  branch_code?: string;
   sort?: "name_asc" | "created_at_desc";
+}
+
+export interface UnitGroupOption {
+  group_code: string;
+  total_units: number;
 }
 
 export type UnitListResponse = PaginatedResponse<Unit>;

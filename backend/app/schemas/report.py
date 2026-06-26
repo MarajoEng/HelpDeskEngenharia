@@ -14,6 +14,8 @@ class ReportFilters(PageParams):
     date_from: date | None = None
     date_to: date | None = None
     unit_id: int | None = Field(default=None, ge=1)
+    group_code: str | None = None
+    branch_code: str | None = None
     region: str | None = None
     status: TicketStatus | None = None
     category: TicketCategory | None = None
@@ -29,7 +31,7 @@ class ReportFilters(PageParams):
     min_estimated_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     max_estimated_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)
 
-    @field_validator("region")
+    @field_validator("region", "group_code", "branch_code")
     @classmethod
     def strip_region(cls, value: str | None) -> str | None:
         if value is None:
