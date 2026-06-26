@@ -133,6 +133,9 @@ export interface Ticket {
   priority_weight?: number | null;
   severity: TicketSeverity;
   status: TicketStatus;
+  status_id?: number | null;
+  status_name?: string | null;
+  status_color?: string | null;
   operational_impact: string | null;
   fuel_nozzles_stopped: number | null;
   estimated_daily_loss: string | null;
@@ -183,6 +186,9 @@ export interface TicketDetail {
   priority_weight?: number | null;
   severity: TicketSeverity;
   status: TicketStatus;
+  status_id?: number | null;
+  status_name?: string | null;
+  status_color?: string | null;
   operational_impact: string | null;
   fuel_nozzles_stopped: number | null;
   estimated_daily_loss: string | null;
@@ -281,11 +287,34 @@ export interface TicketClosePayload {
   close_comment: string;
 }
 
+export interface TicketTransitionPayload {
+  to_status_id: number;
+  comment?: string | null;
+}
+
+export interface TicketAvailableTransition {
+  transition_id: number;
+  from_status_id: number;
+  to_status_id: number;
+  to_status_name: string;
+  to_status_color: string;
+  requires_comment: boolean;
+  requires_attachment: boolean;
+}
+
+export interface TicketAvailableTransitionsResponse {
+  ticket_id: number;
+  current_status_id: number | null;
+  current_status_name: string;
+  transitions: TicketAvailableTransition[];
+}
+
 export interface TicketFilters {
   page?: number;
   page_size?: number;
   unit_id?: number | "";
   status?: TicketStatus | "";
+  status_id?: number | "";
   category?: TicketCategory | "";
   category_id?: number | "";
   subcategory_id?: number | "";

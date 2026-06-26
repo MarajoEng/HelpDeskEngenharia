@@ -23,6 +23,13 @@ export interface TicketCustomFieldFilters extends TicketConfigurationFilters {
   subcategory_id?: number | "";
 }
 
+export interface TicketStatusTransitionFilters {
+  page?: number;
+  page_size?: number;
+  from_status_id?: number | "";
+  is_active?: boolean | "";
+}
+
 export type TicketCustomFieldType = "text" | "textarea" | "number" | "boolean" | "select" | "date";
 
 export interface TicketCustomFieldOption {
@@ -79,6 +86,37 @@ export interface TicketPriorityItem {
   requires_reason: boolean;
   is_active: boolean;
   display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketStatusItem {
+  id: number;
+  name: string;
+  legacy_value?: string | null;
+  description: string | null;
+  color: string;
+  is_initial: boolean;
+  is_final: boolean;
+  pauses_sla: boolean;
+  allows_reopen: boolean;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketStatusTransitionItem {
+  id: number;
+  from_status_id: number;
+  from_status_name: string;
+  to_status_id: number;
+  to_status_name: string;
+  to_status_color: string;
+  requires_comment: boolean;
+  requires_attachment: boolean;
+  allowed_roles_json: string[] | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -140,6 +178,28 @@ export interface TicketPriorityPayload {
   display_order: number;
 }
 
+export interface TicketStatusPayload {
+  name: string;
+  legacy_value?: string | null;
+  description: string | null;
+  color: string;
+  is_initial: boolean;
+  is_final: boolean;
+  pauses_sla: boolean;
+  allows_reopen: boolean;
+  is_active: boolean;
+  display_order: number;
+}
+
+export interface TicketStatusTransitionPayload {
+  from_status_id: number;
+  to_status_id: number;
+  requires_comment: boolean;
+  requires_attachment: boolean;
+  allowed_roles_json: string[] | null;
+  is_active: boolean;
+}
+
 export interface TicketCustomFieldPayload {
   category_id: number;
   subcategory_id?: number | null;
@@ -166,4 +226,6 @@ export type TicketCategoryListResponse = PaginatedResponse<TicketCategoryItem>;
 export type TicketSubcategoryListResponse = PaginatedResponse<TicketSubcategoryItem>;
 export type TicketTypeListResponse = PaginatedResponse<TicketTypeItem>;
 export type TicketPriorityListResponse = PaginatedResponse<TicketPriorityItem>;
+export type TicketStatusListResponse = PaginatedResponse<TicketStatusItem>;
+export type TicketStatusTransitionListResponse = PaginatedResponse<TicketStatusTransitionItem>;
 export type TicketCustomFieldListResponse = PaginatedResponse<TicketCustomFieldItem>;

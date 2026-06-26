@@ -12,7 +12,12 @@ from app.repositories.ticket_repository import create_ticket_history, get_ticket
 from app.schemas.approval import ApprovalDecisionRequest, ApprovalRequestCreate
 from app.schemas.ticket import TicketDetailResponse
 from app.services.exceptions import ConflictServiceError, ValidationServiceError
-from app.services.ticket_service import TicketNotFoundError, build_ticket_detail_response
+from app.services.ticket_service import (
+    TicketNotFoundError,
+    _status_changes,
+    _validate_configured_transition,
+    build_ticket_detail_response,
+)
 
 
 class ApprovalLevelNotConfiguredError(ValidationServiceError):
@@ -95,10 +100,17 @@ def request_ticket_approval(
         justification=payload.justification,
         approved_at=None,
     )
+    _validate_configured_transition(
+        session,
+        ticket=ticket,
+        to_status=TicketStatus.WAITING_APPROVAL,
+        current_user=current_user,
+        comment=payload.justification,
+    )
     update_ticket(
         session,
         ticket,
-        status=TicketStatus.WAITING_APPROVAL,
+        **_status_changes(session, to_status=TicketStatus.WAITING_APPROVAL),
     )
     create_ticket_history(
         session,
@@ -152,12 +164,19 @@ def decide_ticket_approval(
             approved_at=decided_at,
             justification=_merge_justifications(approval.justification, payload.justification),
         )
+        _validate_configured_transition(
+            session,
+            ticket=ticket,
+            to_status=TicketStatus.APPROVED,
+            current_user=current_user,
+            comment=payload.justification,
+        )
         update_ticket(
             session,
             ticket,
             approved_cost=approved_amount,
             approved_at=decided_at,
-            status=TicketStatus.APPROVED,
+            **_status_changes(session, to_status=TicketStatus.APPROVED),
         )
         create_ticket_history(
             session,
@@ -176,10 +195,17 @@ def decide_ticket_approval(
             approved_at=decided_at,
             justification=_merge_justifications(approval.justification, payload.justification),
         )
+        _validate_configured_transition(
+            session,
+            ticket=ticket,
+            to_status=TicketStatus.REJECTED,
+            current_user=current_user,
+            comment=payload.justification,
+        )
         update_ticket(
             session,
             ticket,
-            status=TicketStatus.REJECTED,
+            **_status_changes(session, to_status=TicketStatus.REJECTED),
         )
         create_ticket_history(
             session,

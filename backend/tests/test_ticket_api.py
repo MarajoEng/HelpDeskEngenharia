@@ -5,10 +5,11 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app.models.enums import TicketStatus, UserRole
+from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus, UserRole
 from app.models.ticket import Ticket
 from app.models.ticket_custom_field import TicketCustomField
 from app.models.ticket_history import TicketHistory
+from app.models.ticket_status import TicketStatusTransitionConfig
 from app.models.ticket_subcategory import TicketSubcategoryConfig
 from app.models.ticket_type import TicketTypeConfig
 from app.services.ticket_configuration_seed import seed_ticket_configurations
@@ -83,6 +84,71 @@ async def test_admin_creates_ticket(
     assert history.old_status is None
     assert history.new_status == TicketStatus.OPEN
     assert history.comment == "Chamado aberto"
+
+
+@pytest.mark.anyio
+async def test_new_ticket_uses_configured_initial_status(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    seeded = seed_ticket_configurations(db_session)
+    open_status = next(status for status in seeded["statuses"] if status.legacy_value == "open")
+    open_status.name = "Recebido"
+    db_session.commit()
+
+    response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(unit.id),
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "open"
+    assert data["status_id"] == open_status.id
+    assert data["status_name"] == "Recebido"
+
+
+@pytest.mark.anyio
+async def test_legacy_ticket_without_status_id_still_returns_configured_status_fields(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    seed_ticket_configurations(db_session)
+    ticket = Ticket(
+        ticket_number="ENG-LEGACY-000001",
+        unit_id=unit.id,
+        opened_by_user_id=admin.id,
+        category=TicketCategory.FUEL_PUMP,
+        problem_type="Falha",
+        title="Chamado legado",
+        description="Registro antigo sem status_id.",
+        priority=PriorityLevel.HIGH,
+        severity=TicketSeverity.CRITICAL,
+        status=TicketStatus.OPEN,
+        requires_approval=False,
+        opened_at=datetime.now(UTC),
+    )
+    db_session.add(ticket)
+    db_session.commit()
+
+    response = await client.get(f"/tickets/{ticket.id}", headers=auth_header_for_user(admin))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "open"
+    assert data["status_id"] is None
+    assert data["status_name"] == "Aberto"
 
 
 @pytest.mark.anyio
@@ -335,6 +401,113 @@ async def test_ticket_filters_by_status_category_priority_and_search(
     data = response.json()
     assert data["total"] == 1
     assert data["items"][0]["id"] == first_ticket.id
+
+
+@pytest.mark.anyio
+async def test_ticket_list_filters_by_configured_status_and_returns_status_metadata(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    seeded = seed_ticket_configurations(db_session)
+    open_status = next(status for status in seeded["statuses"] if status.legacy_value == "open")
+    db_session.commit()
+    await client.post("/tickets", headers=auth_header_for_user(admin), json=make_ticket_payload(unit.id))
+
+    response = await client.get(
+        f"/tickets?status_id={open_status.id}",
+        headers=auth_header_for_user(admin),
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["status_id"] == open_status.id
+    assert data["items"][0]["status_name"] == open_status.name
+    assert data["items"][0]["status_color"] == open_status.color
+
+
+@pytest.mark.anyio
+async def test_configured_status_transition_validates_comment_role_and_history(
+    client: httpx.AsyncClient,
+    db_session,
+    create_unit,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    unit = create_unit()
+    admin = create_user(role=UserRole.ADMIN)
+    manager = create_user(name="Manager", email="workflow-manager@local.test", role=UserRole.MANAGER, unit_id=unit.id)
+    seeded = seed_ticket_configurations(db_session)
+    open_status = next(status for status in seeded["statuses"] if status.legacy_value == "open")
+    triage_status = next(status for status in seeded["statuses"] if status.legacy_value == "triage")
+    transition = db_session.scalar(
+        select(TicketStatusTransitionConfig).where(
+            TicketStatusTransitionConfig.from_status_id == open_status.id,
+            TicketStatusTransitionConfig.to_status_id == triage_status.id,
+        )
+    )
+    assert transition is not None
+    transition.requires_comment = True
+    transition.allowed_roles_json = ["engineering"]
+    db_session.commit()
+
+    create_response = await client.post(
+        "/tickets",
+        headers=auth_header_for_user(admin),
+        json=make_ticket_payload(unit.id, requires_approval=False),
+    )
+    ticket_id = create_response.json()["id"]
+
+    available_response = await client.get(
+        f"/tickets/{ticket_id}/available-transitions",
+        headers=auth_header_for_user(admin),
+    )
+    assert available_response.status_code == 200
+    assert available_response.json()["transitions"] == []
+
+    forbidden_response = await client.patch(
+        f"/tickets/{ticket_id}/transition",
+        headers=auth_header_for_user(admin),
+        json={"to_status_id": triage_status.id, "comment": "Triagem"},
+    )
+    assert forbidden_response.status_code == 403
+
+    transition.allowed_roles_json = ["admin"]
+    db_session.commit()
+    missing_comment_response = await client.patch(
+        f"/tickets/{ticket_id}/transition",
+        headers=auth_header_for_user(admin),
+        json={"to_status_id": triage_status.id},
+    )
+    assert missing_comment_response.status_code == 422
+
+    valid_response = await client.patch(
+        f"/tickets/{ticket_id}/transition",
+        headers=auth_header_for_user(admin),
+        json={"to_status_id": triage_status.id, "comment": "Triagem validada"},
+    )
+    assert valid_response.status_code == 200
+    assert valid_response.json()["status"] == "triage"
+    assert valid_response.json()["status_id"] == triage_status.id
+
+    history = db_session.scalars(
+        select(TicketHistory).where(TicketHistory.ticket_id == ticket_id).order_by(TicketHistory.id.asc())
+    ).all()
+    assert history[-1].old_status == TicketStatus.OPEN
+    assert history[-1].new_status == TicketStatus.TRIAGE
+    assert history[-1].comment == "Triagem validada"
+
+    invalid_response = await client.patch(
+        f"/tickets/{ticket_id}/transition",
+        headers=auth_header_for_user(manager),
+        json={"to_status_id": open_status.id, "comment": "Voltar"},
+    )
+    assert invalid_response.status_code in {403, 409}
 
 
 @pytest.mark.anyio

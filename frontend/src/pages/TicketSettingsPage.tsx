@@ -5,16 +5,22 @@ import {
   createTicketCategory,
   createTicketCustomField,
   createTicketPriority,
+  createTicketStatus,
+  createTicketStatusTransition,
   createTicketSubcategory,
   createTicketType,
   listAdminTicketCategories,
   listAdminTicketCustomFields,
   listAdminTicketPriorities,
+  listAdminTicketStatuses,
+  listAdminTicketStatusTransitions,
   listAdminTicketSubcategories,
   listAdminTicketTypes,
   updateTicketCategory,
   updateTicketCustomField,
   updateTicketPriority,
+  updateTicketStatus,
+  updateTicketStatusTransition,
   updateTicketSubcategory,
   updateTicketType,
 } from "../api/ticketConfigurationApi";
@@ -46,6 +52,12 @@ import type {
   TicketPriorityItem,
   TicketPriorityListResponse,
   TicketPriorityPayload,
+  TicketStatusItem,
+  TicketStatusListResponse,
+  TicketStatusPayload,
+  TicketStatusTransitionItem,
+  TicketStatusTransitionListResponse,
+  TicketStatusTransitionPayload,
   TicketSubcategoryFilters,
   TicketSubcategoryItem,
   TicketSubcategoryListResponse,
@@ -56,7 +68,7 @@ import type {
 } from "../types/ticketConfiguration";
 import { getErrorMessage } from "../utils/messages";
 
-type TicketSettingsTabId = "categories" | "subcategories" | "types" | "priorities" | "custom_fields";
+type TicketSettingsTabId = "categories" | "subcategories" | "types" | "priorities" | "workflow" | "custom_fields";
 
 type PaginatedState<T> = {
   items: T[];
@@ -102,6 +114,28 @@ type PriorityFormState = {
   display_order: string;
 };
 
+type StatusFormState = {
+  name: string;
+  legacy_value: string;
+  description: string;
+  color: string;
+  is_initial: boolean;
+  is_final: boolean;
+  pauses_sla: boolean;
+  allows_reopen: boolean;
+  is_active: boolean;
+  display_order: string;
+};
+
+type TransitionFormState = {
+  from_status_id: string;
+  to_status_id: string;
+  requires_comment: boolean;
+  requires_attachment: boolean;
+  allowed_roles: string;
+  is_active: boolean;
+};
+
 type CustomFieldFormState = {
   category_id: string;
   subcategory_id: string;
@@ -122,6 +156,7 @@ const settingsTabs: Array<{ id: TicketSettingsTabId; label: string }> = [
   { id: "subcategories", label: "Subcategorias" },
   { id: "types", label: "Tipos de chamado" },
   { id: "priorities", label: "Prioridades" },
+  { id: "workflow", label: "Status e fluxo" },
   { id: "custom_fields", label: "Campos personalizados" },
 ];
 
@@ -165,6 +200,22 @@ const emptyCustomFieldState: PaginatedState<TicketCustomFieldItem> = {
   pages: 0,
 };
 
+const emptyStatusState: PaginatedState<TicketStatusItem> = {
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+  pages: 0,
+};
+
+const emptyTransitionState: PaginatedState<TicketStatusTransitionItem> = {
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 100,
+  pages: 0,
+};
+
 const initialCategoryFilters: TicketConfigurationFilters = {
   page: 1,
   page_size: 10,
@@ -201,6 +252,13 @@ const initialCustomFieldFilters: TicketCustomFieldFilters = {
   is_active: "",
   category_id: "",
   subcategory_id: "",
+};
+
+const initialStatusFilters: TicketConfigurationFilters = {
+  page: 1,
+  page_size: 50,
+  search: "",
+  is_active: "",
 };
 
 const initialCategoryForm: CategoryFormState = {
@@ -254,12 +312,35 @@ const initialCustomFieldForm: CustomFieldFormState = {
   options_text: "",
 };
 
+const initialStatusForm: StatusFormState = {
+  name: "",
+  legacy_value: "",
+  description: "",
+  color: "#0f766e",
+  is_initial: false,
+  is_final: false,
+  pauses_sla: false,
+  allows_reopen: false,
+  is_active: true,
+  display_order: "0",
+};
+
+const initialTransitionForm: TransitionFormState = {
+  from_status_id: "",
+  to_status_id: "",
+  requires_comment: true,
+  requires_attachment: false,
+  allowed_roles: "",
+  is_active: true,
+};
+
 function parseTab(value: string | null): TicketSettingsTabId {
   if (
     value === "categories" ||
     value === "subcategories" ||
     value === "types" ||
     value === "priorities" ||
+    value === "workflow" ||
     value === "custom_fields"
   ) {
     return value;
@@ -309,6 +390,37 @@ function customFieldTypeLabel(type: TicketCustomFieldType) {
     date: "Data",
   };
   return labels[type];
+}
+
+function buildStatusPayload(form: StatusFormState): TicketStatusPayload {
+  return {
+    name: form.name.trim(),
+    legacy_value: toOptionalString(form.legacy_value),
+    description: toOptionalString(form.description),
+    color: form.color.trim(),
+    is_initial: form.is_initial,
+    is_final: form.is_final,
+    pauses_sla: form.pauses_sla,
+    allows_reopen: form.allows_reopen,
+    is_active: form.is_active,
+    display_order: toNumberValue(form.display_order),
+  };
+}
+
+function buildTransitionPayload(form: TransitionFormState): TicketStatusTransitionPayload {
+  const allowedRoles = form.allowed_roles
+    .split(",")
+    .map((role) => role.trim())
+    .filter(Boolean);
+
+  return {
+    from_status_id: Number(form.from_status_id),
+    to_status_id: Number(form.to_status_id),
+    requires_comment: form.requires_comment,
+    requires_attachment: form.requires_attachment,
+    allowed_roles_json: allowedRoles.length > 0 ? allowedRoles : null,
+    is_active: form.is_active,
+  };
 }
 
 function formatOptionsText(options: TicketCustomFieldOption[]) {
@@ -1835,6 +1947,368 @@ function TicketCustomFieldsSection({
   );
 }
 
+function TicketWorkflowSection({ token }: { token: string }) {
+  const [filters, setFilters] = useState<TicketConfigurationFilters>(initialStatusFilters);
+  const [statuses, setStatuses] = useState<TicketStatusListResponse>(emptyStatusState);
+  const [transitions, setTransitions] = useState<TicketStatusTransitionListResponse>(emptyTransitionState);
+  const [statusForm, setStatusForm] = useState<StatusFormState>(initialStatusForm);
+  const [transitionForm, setTransitionForm] = useState<TransitionFormState>(initialTransitionForm);
+  const [editingStatus, setEditingStatus] = useState<TicketStatusItem | null>(null);
+  const [editingTransition, setEditingTransition] = useState<TicketStatusTransitionItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let isActive = true;
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    Promise.all([
+      listAdminTicketStatuses(token, filters),
+      listAdminTicketStatusTransitions(token, { page: 1, page_size: 100 }),
+    ])
+      .then(([statusResponse, transitionResponse]) => {
+        if (!isActive) return;
+        setStatuses(statusResponse);
+        setTransitions(transitionResponse);
+      })
+      .catch((error: unknown) => {
+        if (!isActive) return;
+        setErrorMessage(getErrorMessage(error, "Nao foi possivel carregar status e transicoes."));
+      })
+      .finally(() => {
+        if (isActive) setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [token, filters.page, filters.page_size, filters.search, filters.is_active, reloadKey]);
+
+  function resetStatusForm() {
+    setEditingStatus(null);
+    setStatusForm(initialStatusForm);
+  }
+
+  function resetTransitionForm() {
+    setEditingTransition(null);
+    setTransitionForm(initialTransitionForm);
+  }
+
+  function submitStatus(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const request = editingStatus
+      ? updateTicketStatus(token, editingStatus.id, buildStatusPayload(statusForm))
+      : createTicketStatus(token, buildStatusPayload(statusForm));
+
+    request
+      .then(() => {
+        resetStatusForm();
+        setReloadKey((current) => current + 1);
+      })
+      .catch((error: unknown) => setErrorMessage(getErrorMessage(error, "Nao foi possivel salvar o status.")));
+  }
+
+  function submitTransition(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const request = editingTransition
+      ? updateTicketStatusTransition(token, editingTransition.id, buildTransitionPayload(transitionForm))
+      : createTicketStatusTransition(token, buildTransitionPayload(transitionForm));
+
+    request
+      .then(() => {
+        resetTransitionForm();
+        setReloadKey((current) => current + 1);
+      })
+      .catch((error: unknown) => setErrorMessage(getErrorMessage(error, "Nao foi possivel salvar a transicao.")));
+  }
+
+  function startEditStatus(status: TicketStatusItem) {
+    setEditingStatus(status);
+    setStatusForm({
+      name: status.name,
+      legacy_value: status.legacy_value ?? "",
+      description: status.description ?? "",
+      color: status.color,
+      is_initial: status.is_initial,
+      is_final: status.is_final,
+      pauses_sla: status.pauses_sla,
+      allows_reopen: status.allows_reopen,
+      is_active: status.is_active,
+      display_order: String(status.display_order),
+    });
+  }
+
+  function startEditTransition(transition: TicketStatusTransitionItem) {
+    setEditingTransition(transition);
+    setTransitionForm({
+      from_status_id: String(transition.from_status_id),
+      to_status_id: String(transition.to_status_id),
+      requires_comment: transition.requires_comment,
+      requires_attachment: transition.requires_attachment,
+      allowed_roles: (transition.allowed_roles_json ?? []).join(", "),
+      is_active: transition.is_active,
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      {errorMessage ? <ErrorState description={errorMessage} /> : null}
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <form className="grid gap-4 lg:grid-cols-12" onSubmit={submitStatus}>
+          <div className="lg:col-span-3">
+            <Input
+              label="Nome"
+              value={statusForm.name}
+              onChange={(event) => setStatusForm((current) => ({ ...current, name: event.target.value }))}
+              required
+            />
+          </div>
+          <div className="lg:col-span-2">
+            <Input
+              label="Legado"
+              value={statusForm.legacy_value}
+              onChange={(event) => setStatusForm((current) => ({ ...current, legacy_value: event.target.value }))}
+              placeholder="open"
+            />
+          </div>
+          <div className="lg:col-span-2">
+            <Input
+              label="Cor"
+              type="color"
+              value={statusForm.color}
+              onChange={(event) => setStatusForm((current) => ({ ...current, color: event.target.value }))}
+            />
+          </div>
+          <div className="lg:col-span-2">
+            <Input
+              label="Ordem"
+              type="number"
+              value={statusForm.display_order}
+              onChange={(event) => setStatusForm((current) => ({ ...current, display_order: event.target.value }))}
+            />
+          </div>
+          <div className="lg:col-span-3">
+            <Textarea
+              label="Descricao"
+              value={statusForm.description}
+              onChange={(event) => setStatusForm((current) => ({ ...current, description: event.target.value }))}
+              rows={2}
+            />
+          </div>
+          <div className="flex flex-wrap gap-4 lg:col-span-9">
+            {[
+              ["Inicial", "is_initial"],
+              ["Final", "is_final"],
+              ["Pausa SLA", "pauses_sla"],
+              ["Permite reabrir", "allows_reopen"],
+              ["Ativo", "is_active"],
+            ].map(([label, key]) => (
+              <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(statusForm[key as keyof StatusFormState])}
+                  onChange={(event) =>
+                    setStatusForm((current) => ({ ...current, [key]: event.target.checked }))
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <div className="flex items-end gap-2 lg:col-span-3">
+            <Button type="submit">{editingStatus ? "Salvar status" : "Criar status"}</Button>
+            {editingStatus ? (
+              <Button type="button" variant="secondary" onClick={resetStatusForm}>
+                Cancelar
+              </Button>
+            ) : null}
+          </div>
+        </form>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <form className="grid gap-4 lg:grid-cols-12" onSubmit={submitTransition}>
+          <div className="lg:col-span-3">
+            <Select
+              label="De"
+              value={transitionForm.from_status_id}
+              onChange={(event) => setTransitionForm((current) => ({ ...current, from_status_id: event.target.value }))}
+              required
+            >
+              <option value="">Selecione</option>
+              {statuses.items.map((status) => (
+                <option key={status.id} value={status.id}>{status.name}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="lg:col-span-3">
+            <Select
+              label="Para"
+              value={transitionForm.to_status_id}
+              onChange={(event) => setTransitionForm((current) => ({ ...current, to_status_id: event.target.value }))}
+              required
+            >
+              <option value="">Selecione</option>
+              {statuses.items.map((status) => (
+                <option key={status.id} value={status.id}>{status.name}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="lg:col-span-3">
+            <Input
+              label="Perfis permitidos"
+              value={transitionForm.allowed_roles}
+              onChange={(event) => setTransitionForm((current) => ({ ...current, allowed_roles: event.target.value }))}
+              placeholder="admin, engineering"
+            />
+          </div>
+          <div className="flex flex-wrap items-end gap-4 lg:col-span-3">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={transitionForm.requires_comment}
+                onChange={(event) =>
+                  setTransitionForm((current) => ({ ...current, requires_comment: event.target.checked }))
+                }
+              />
+              Comentario
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={transitionForm.requires_attachment}
+                onChange={(event) =>
+                  setTransitionForm((current) => ({ ...current, requires_attachment: event.target.checked }))
+                }
+              />
+              Anexo
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={transitionForm.is_active}
+                onChange={(event) =>
+                  setTransitionForm((current) => ({ ...current, is_active: event.target.checked }))
+                }
+              />
+              Ativa
+            </label>
+          </div>
+          <div className="flex gap-2 lg:col-span-12">
+            <Button type="submit">{editingTransition ? "Salvar transicao" : "Criar transicao"}</Button>
+            {editingTransition ? (
+              <Button type="button" variant="secondary" onClick={resetTransitionForm}>
+                Cancelar
+              </Button>
+            ) : null}
+          </div>
+        </form>
+      </section>
+
+      {isLoading ? <LoadingState title="Carregando fluxo" description="Atualizando status e transicoes." /> : null}
+
+      {!isLoading ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h3 className="text-base font-semibold text-slate-900">Status</h3>
+            </div>
+            {statuses.items.length === 0 ? (
+              <EmptyState title="Ainda nao ha registros" description="Nenhum status configurado." />
+            ) : (
+              <Table minWidth={760}>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Legado</th>
+                    <th>Marcadores</th>
+                    <th>Status</th>
+                    <th>Acoes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statuses.items.map((status) => (
+                    <tr key={status.id}>
+                      <td>
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: status.color }} />
+                          {status.name}
+                        </span>
+                      </td>
+                      <td>{status.legacy_value ?? "Sem legado"}</td>
+                      <td className="space-x-1">
+                        {status.is_initial ? <Badge tone="info">Inicial</Badge> : null}
+                        {status.is_final ? <Badge tone="neutral">Final</Badge> : null}
+                        {status.pauses_sla ? <Badge tone="warning">Pausa SLA</Badge> : null}
+                      </td>
+                      <td>{statusBadge(status.is_active)}</td>
+                      <td>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => startEditStatus(status)}>
+                          Editar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h3 className="text-base font-semibold text-slate-900">Transicoes</h3>
+            </div>
+            {transitions.items.length === 0 ? (
+              <EmptyState title="Ainda nao ha registros" description="Nenhuma transicao configurada." />
+            ) : (
+              <Table minWidth={760}>
+                <thead>
+                  <tr>
+                    <th>Origem</th>
+                    <th>Destino</th>
+                    <th>Regras</th>
+                    <th>Status</th>
+                    <th>Acoes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transitions.items.map((transition) => (
+                    <tr key={transition.id}>
+                      <td>{transition.from_status_name}</td>
+                      <td>{transition.to_status_name}</td>
+                      <td className="space-x-1">
+                        {transition.requires_comment ? <Badge tone="info">Comentario</Badge> : null}
+                        {transition.requires_attachment ? <Badge tone="warning">Anexo</Badge> : null}
+                        {transition.allowed_roles_json?.length ? (
+                          <Badge tone="neutral">{transition.allowed_roles_json.join(", ")}</Badge>
+                        ) : null}
+                      </td>
+                      <td>{statusBadge(transition.is_active)}</td>
+                      <td>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => startEditTransition(transition)}
+                        >
+                          Editar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function TicketSettingsPage() {
   const { token, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1946,6 +2420,8 @@ export default function TicketSettingsPage() {
       ) : null}
 
       {activeTab === "priorities" ? <TicketPrioritiesSection token={token} /> : null}
+
+      {activeTab === "workflow" ? <TicketWorkflowSection token={token} /> : null}
 
       {activeTab === "custom_fields" ? (
         <TicketCustomFieldsSection

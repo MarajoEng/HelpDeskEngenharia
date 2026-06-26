@@ -8,11 +8,15 @@ from app.repositories.ticket_configuration_repository import (
     count_ticket_categories,
     count_ticket_custom_fields,
     count_ticket_priorities,
+    count_ticket_status_transitions,
+    count_ticket_statuses,
     count_ticket_subcategories,
     count_ticket_types,
     create_ticket_category,
     create_ticket_custom_field,
     create_ticket_priority,
+    create_ticket_status,
+    create_ticket_status_transition,
     create_ticket_subcategory,
     create_ticket_type,
     get_ticket_category_by_id,
@@ -21,6 +25,10 @@ from app.repositories.ticket_configuration_repository import (
     get_ticket_custom_field_by_name,
     get_ticket_priority_by_id,
     get_ticket_priority_by_name,
+    get_ticket_status_by_id,
+    get_ticket_status_by_name,
+    get_ticket_status_transition_by_id,
+    get_ticket_status_transition,
     get_ticket_subcategory_by_id,
     get_ticket_subcategory_by_name,
     get_ticket_type_by_id,
@@ -29,6 +37,8 @@ from app.repositories.ticket_configuration_repository import (
     list_ticket_categories,
     list_ticket_custom_fields,
     list_ticket_priorities,
+    list_ticket_status_transitions,
+    list_ticket_statuses,
     list_ticket_subcategories,
     list_ticket_types,
     list_ticket_types_by_ids,
@@ -36,6 +46,8 @@ from app.repositories.ticket_configuration_repository import (
     update_ticket_category,
     update_ticket_custom_field,
     update_ticket_priority,
+    update_ticket_status,
+    update_ticket_status_transition,
     update_ticket_subcategory,
     update_ticket_type,
 )
@@ -57,6 +69,15 @@ from app.schemas.ticket_configuration import (
     TicketPriorityListResponse,
     TicketPriorityResponse,
     TicketPriorityUpdate,
+    TicketStatusCreate,
+    TicketStatusListResponse,
+    TicketStatusResponse,
+    TicketStatusTransitionCreate,
+    TicketStatusTransitionListParams,
+    TicketStatusTransitionListResponse,
+    TicketStatusTransitionResponse,
+    TicketStatusTransitionUpdate,
+    TicketStatusUpdate,
     TicketSubcategoryCreate,
     TicketSubcategoryListParams,
     TicketSubcategoryListResponse,
@@ -95,6 +116,14 @@ class TicketCustomFieldNotFoundError(NotFoundServiceError):
     detail = "Ticket custom field not found."
 
 
+class TicketStatusNotFoundError(NotFoundServiceError):
+    detail = "Ticket status not found."
+
+
+class TicketStatusTransitionNotFoundError(NotFoundServiceError):
+    detail = "Ticket status transition not found."
+
+
 class DuplicateTicketCategoryError(ConflictServiceError):
     detail = "Ticket category name already exists."
 
@@ -113,6 +142,14 @@ class DuplicateTicketPriorityError(ConflictServiceError):
 
 class DuplicateTicketCustomFieldError(ConflictServiceError):
     detail = "Ticket custom field name already exists for this scope."
+
+
+class DuplicateTicketStatusError(ConflictServiceError):
+    detail = "Ticket status name already exists."
+
+
+class DuplicateTicketStatusTransitionError(ConflictServiceError):
+    detail = "Ticket status transition already exists."
 
 
 def _ensure_admin(current_user: User) -> None:
@@ -187,6 +224,41 @@ def _build_priority_response(priority) -> TicketPriorityResponse:
     )
 
 
+def _build_status_response(status) -> TicketStatusResponse:
+    return TicketStatusResponse(
+        id=status.id,
+        name=status.name,
+        legacy_value=status.legacy_value,
+        description=status.description,
+        color=status.color,
+        is_initial=status.is_initial,
+        is_final=status.is_final,
+        pauses_sla=status.pauses_sla,
+        allows_reopen=status.allows_reopen,
+        is_active=status.is_active,
+        display_order=status.display_order,
+        created_at=status.created_at,
+        updated_at=status.updated_at,
+    )
+
+
+def _build_transition_response(transition) -> TicketStatusTransitionResponse:
+    return TicketStatusTransitionResponse(
+        id=transition.id,
+        from_status_id=transition.from_status_id,
+        from_status_name=transition.from_status.name if transition.from_status else "",
+        to_status_id=transition.to_status_id,
+        to_status_name=transition.to_status.name if transition.to_status else "",
+        to_status_color=transition.to_status.color if transition.to_status else "#475569",
+        requires_comment=transition.requires_comment,
+        requires_attachment=transition.requires_attachment,
+        allowed_roles_json=transition.allowed_roles_json,
+        is_active=transition.is_active,
+        created_at=transition.created_at,
+        updated_at=transition.updated_at,
+    )
+
+
 def _sorted_options(options: list[dict] | None) -> list[TicketCustomFieldOption]:
     parsed = [TicketCustomFieldOption.model_validate(option) for option in (options or [])]
     return sorted(parsed, key=lambda option: (option.display_order, option.label.lower(), option.value))
@@ -248,6 +320,20 @@ def _get_ticket_custom_field_or_404(session: Session, custom_field_id: int):
     if custom_field is None:
         raise TicketCustomFieldNotFoundError
     return custom_field
+
+
+def _get_ticket_status_or_404(session: Session, status_id: int):
+    status = get_ticket_status_by_id(session, status_id)
+    if status is None:
+        raise TicketStatusNotFoundError
+    return status
+
+
+def _get_ticket_status_transition_or_404(session: Session, transition_id: int):
+    transition = get_ticket_status_transition_by_id(session, transition_id)
+    if transition is None:
+        raise TicketStatusTransitionNotFoundError
+    return transition
 
 
 def _validate_subcategory_scope(session: Session, category_id: int, subcategory_id: int | None):
@@ -725,6 +811,175 @@ def update_ticket_priority_record(
         update_ticket_priority(session, priority, **changes)
     session.refresh(priority)
     return _build_priority_response(priority)
+
+
+def list_public_ticket_statuses(
+    session: Session,
+    params: TicketConfigurationPageParams,
+) -> TicketStatusListResponse:
+    total = count_ticket_statuses(session, search=params.search, is_active=True)
+    items = list_ticket_statuses(
+        session,
+        page=params.page,
+        page_size=params.page_size,
+        search=params.search,
+        is_active=True,
+        sort=params.sort,
+    )
+    return TicketStatusListResponse(
+        items=[_build_status_response(item) for item in items],
+        total=total,
+        page=params.page,
+        page_size=params.page_size,
+        pages=calculate_pages(total, params.page_size),
+    )
+
+
+def list_admin_ticket_statuses(
+    session: Session,
+    params: TicketConfigurationPageParams,
+    current_user: User,
+) -> TicketStatusListResponse:
+    _ensure_admin(current_user)
+    total = count_ticket_statuses(session, search=params.search, is_active=params.is_active)
+    items = list_ticket_statuses(
+        session,
+        page=params.page,
+        page_size=params.page_size,
+        search=params.search,
+        is_active=params.is_active,
+        sort=params.sort,
+    )
+    return TicketStatusListResponse(
+        items=[_build_status_response(item) for item in items],
+        total=total,
+        page=params.page,
+        page_size=params.page_size,
+        pages=calculate_pages(total, params.page_size),
+    )
+
+
+def create_ticket_status_record(
+    session: Session,
+    payload: TicketStatusCreate,
+    current_user: User,
+) -> TicketStatusResponse:
+    _ensure_admin(current_user)
+    if get_ticket_status_by_name(session, payload.name) is not None:
+        raise DuplicateTicketStatusError
+
+    status = create_ticket_status(session, **payload.model_dump())
+    session.refresh(status)
+    return _build_status_response(status)
+
+
+def update_ticket_status_record(
+    session: Session,
+    status_id: int,
+    payload: TicketStatusUpdate,
+    current_user: User,
+) -> TicketStatusResponse:
+    _ensure_admin(current_user)
+    status = _get_ticket_status_or_404(session, status_id)
+    changes = payload.model_dump(exclude_unset=True)
+
+    if "name" in changes and changes["name"] is not None:
+        existing = get_ticket_status_by_name(session, changes["name"])
+        if existing is not None and existing.id != status.id:
+            raise DuplicateTicketStatusError
+
+    if changes:
+        update_ticket_status(session, status, **changes)
+    session.refresh(status)
+    return _build_status_response(status)
+
+
+def list_admin_ticket_status_transitions(
+    session: Session,
+    params: TicketStatusTransitionListParams,
+    current_user: User,
+) -> TicketStatusTransitionListResponse:
+    _ensure_admin(current_user)
+    if params.from_status_id is not None:
+        _get_ticket_status_or_404(session, params.from_status_id)
+
+    total = count_ticket_status_transitions(
+        session,
+        from_status_id=params.from_status_id,
+        is_active=params.is_active,
+    )
+    items = list_ticket_status_transitions(
+        session,
+        page=params.page,
+        page_size=params.page_size,
+        from_status_id=params.from_status_id,
+        is_active=params.is_active,
+    )
+    return TicketStatusTransitionListResponse(
+        items=[_build_transition_response(item) for item in items],
+        total=total,
+        page=params.page,
+        page_size=params.page_size,
+        pages=calculate_pages(total, params.page_size),
+    )
+
+
+def _validate_transition_payload(
+    session: Session,
+    *,
+    from_status_id: int,
+    to_status_id: int,
+    current_transition_id: int | None = None,
+) -> None:
+    if from_status_id == to_status_id:
+        raise ValidationServiceError("Transition target must be different from the source status.")
+    _get_ticket_status_or_404(session, from_status_id)
+    _get_ticket_status_or_404(session, to_status_id)
+    existing = get_ticket_status_transition(session, from_status_id=from_status_id, to_status_id=to_status_id)
+    if existing is not None and existing.id != current_transition_id:
+        raise DuplicateTicketStatusTransitionError
+
+
+def create_ticket_status_transition_record(
+    session: Session,
+    payload: TicketStatusTransitionCreate,
+    current_user: User,
+) -> TicketStatusTransitionResponse:
+    _ensure_admin(current_user)
+    _validate_transition_payload(
+        session,
+        from_status_id=payload.from_status_id,
+        to_status_id=payload.to_status_id,
+    )
+    transition = create_ticket_status_transition(session, **payload.model_dump())
+    session.refresh(transition)
+    return _build_transition_response(transition)
+
+
+def update_ticket_status_transition_record(
+    session: Session,
+    transition_id: int,
+    payload: TicketStatusTransitionUpdate,
+    current_user: User,
+) -> TicketStatusTransitionResponse:
+    _ensure_admin(current_user)
+    transition = _get_ticket_status_transition_or_404(session, transition_id)
+    changes = payload.model_dump(exclude_unset=True)
+
+    next_from_status_id = changes.get("from_status_id", transition.from_status_id)
+    next_to_status_id = changes.get("to_status_id", transition.to_status_id)
+    if "from_status_id" in changes or "to_status_id" in changes:
+        _validate_transition_payload(
+            session,
+            from_status_id=next_from_status_id,
+            to_status_id=next_to_status_id,
+            current_transition_id=transition.id,
+        )
+
+    if changes:
+        update_ticket_status_transition(session, transition, **changes)
+    session.refresh(transition)
+    return _build_transition_response(transition)
 
 
 def list_admin_ticket_custom_fields(

@@ -1,26 +1,322 @@
-# DESIGN
+---
 
-- Identidade visual: linguagem corporativa, limpa e técnica, com contraste forte, tipografia legível e sem visual improvisado.
-- Layout base: sidebar fixa para navegação principal e topbar para contexto, busca, filtros globais e ações rápidas.
-- Páginas: sempre com título, subtítulo curto, bloco de ações e conteúdo organizado por seções previsíveis.
-- Cards: usar cabeçalho curto, métrica ou contexto central, borda discreta e espaçamento consistente.
-- Tabelas: priorizar leitura rápida, cabeçalho fixo quando necessário, filtros claros e estados de ordenação visíveis.
-- Status: badges semânticos e consistentes para `open`, `in_progress`, `waiting_approval`, `resolved`, `closed` e derivados.
-- Prioridade: badges distintos para `low`, `medium`, `high` e `critical`, com contraste suficiente sem depender só de cor.
-- Formulários: labels visíveis, ajuda contextual curta, validação próxima ao campo e ações principais destacadas.
-- Dashboard: números reais da API, recortes temporais explícitos e destaque para gargalos, SLA e fila operacional.
-- Estados: toda tela deve prever loading, erro e vazio com mensagens objetivas e ações de recuperação quando fizer sentido.
-- FASE 14: componentes compartilhados devem viver em `frontend/src/components/ui/`, com a mesma linguagem para botões, inputs, modais, tabelas, paginação e estados.
-- FASE 14: sidebar principal enxuta com apenas `Dashboard`, `Chamados`, `Engenharia`, `Relatorios`, `Alertas` e `Configuracoes`, com largura compacta, opcao de recolhimento e destaque forte para rota ativa.
-- FASE 14: `Abrir chamado` sai da navegacao principal e aparece como acao contextual em telas operacionais, preservando a rota real de criacao.
-- FASE 14: telas administrativas secundarias ficam agrupadas em `Configuracoes` com abas internas compactas e visibilidade orientada por permissao visual.
-- FASE 14: topbar minima com usuario/perfil, indicador de sessao ativa e saida discreta, evitando informacao duplicada em relacao a sidebar.
-- FASE 14: badges devem ser resolvidos por helpers/componentes centrais, evitando `switch/case` duplicado em páginas.
-- FASE-CONFIG-BASE-1: a configuracao de chamados deve reaproveitar `SettingsLayout` e `settingsTabs.ts`, sem nova area administrativa fora de `/settings`.
-- FASE-CONFIG-BASE-1: a rota unica `/settings/tickets` concentra abas internas para `Categorias`, `Subcategorias`, `Tipos de chamado` e `Prioridades`, mantendo o visual administrativo ja adotado no portal.
-- FASE-CONFIG-BASE-1: listas configuraveis devem usar estados padronizados de loading, erro e vazio, com tabelas/modais reaproveitados de `Unidades`, `Usuarios`, `Fornecedores` e `Alcadas`.
-- FASE-CONFIG-BASE-1: categorias, tipos e prioridades deixam de nascer como lista fixa nova no frontend; o cadastro administrativo passa a vir da API e prepara a migracao do formulario de abertura para a fase seguinte.
-- FASE-CONFIG-FORM-2: `CreateTicketPage` e os filtros principais devem consumir `GET /ticket-categories`, `GET /ticket-categories/{id}/subcategories`, `GET /ticket-types` e `GET /ticket-priorities`, mantendo fallback seguro para chamados legados.
-- FASE-CONFIG-FORM-2: categoria, subcategoria, tipo e prioridade configuraveis entram no layout existente sem criar nova tela, nova sidebar ou novo padrao visual, reaproveitando `Select`, `Input`, `Button`, `LoadingState`, `ErrorState` e `EmptyState`.
-- FASE-CONFIG-FORM-2: dashboards e relatorios que exibem nomes de categoria/prioridade devem preferir os rótulos configurados pela API quando houver `legacy_value` compativel, sem quebrar distribuicoes e filtros antigos.
-- Regra final: proibido mock fixo em tela final ou indicador visual que simule dado real sem origem na API.
+name: Portal de Chamados Engenharia
+version: 1.0.0
+type: design-system
+product: engineering-ticket-platform
+
+colors:
+primary:
+value: "#0F172A"
+role: "Cor principal para navegação, títulos fortes e estrutura institucional."
+secondary:
+value: "#1E40AF"
+role: "Cor de ação principal para botões, links e elementos ativos."
+success:
+value: "#15803D"
+role: "Usada para chamados concluídos, SLA cumprido e aprovações."
+warning:
+value: "#D97706"
+role: "Usada para alertas, pendências e chamados próximos do vencimento."
+danger:
+value: "#B91C1C"
+role: "Usada para chamados críticos, SLA estourado, reprovação e risco operacional."
+background:
+value: "#F8FAFC"
+role: "Fundo geral das telas."
+surface:
+value: "#FFFFFF"
+role: "Cards, tabelas, modais e painéis."
+border:
+value: "#E2E8F0"
+role: "Bordas leves e separadores."
+text:
+value: "#0F172A"
+role: "Texto principal."
+muted:
+value: "#64748B"
+role: "Textos secundários e descrições."
+
+typography:
+fontFamily:
+value: "Inter, system-ui, sans-serif"
+headingWeight:
+value: 700
+bodyWeight:
+value: 400
+
+spacing:
+xs:
+value: "4px"
+sm:
+value: "8px"
+md:
+value: "16px"
+lg:
+value: "24px"
+xl:
+value: "32px"
+
+radius:
+sm:
+value: "6px"
+md:
+value: "10px"
+lg:
+value: "16px"
+
+layout:
+maxContentWidth:
+value: "1440px"
+sidebarWidth:
+value: "260px"
+topbarHeight:
+value: "64px"
+-------------
+
+# DESIGN.md — Portal de Chamados Engenharia
+
+## Identidade visual
+
+O sistema deve transmitir controle, rastreabilidade, engenharia, operação e tomada de decisão.
+
+A interface deve parecer profissional, limpa e executiva.
+Evitar aparência infantil, colorida demais ou genérica.
+
+Priorizar:
+
+* clareza;
+* dados visíveis;
+* status bem destacados;
+* tabelas organizadas;
+* dashboards objetivos;
+* telas operacionais rápidas;
+* hierarquia visual forte;
+* baixo ruído visual.
+
+## Layout principal
+
+O sistema deve usar layout administrativo com:
+
+* sidebar lateral para navegação;
+* topbar superior com usuário, unidade e ações rápidas;
+* conteúdo central em cards;
+* largura confortável para dashboards e tabelas;
+* responsividade para notebook e desktop.
+
+Menu lateral sugerido:
+
+* Dashboard;
+* Chamados;
+* Abrir chamado;
+* Engenharia;
+* Aprovações;
+* Unidades;
+* Usuários;
+* Relatórios;
+* Configurações.
+
+## Padrão de páginas
+
+Toda página deve seguir a estrutura:
+
+1. Título da página;
+2. Descrição curta;
+3. Ações principais no topo;
+4. Filtros quando necessário;
+5. Conteúdo em cards ou tabela;
+6. Estados de loading, vazio e erro.
+
+Exemplo:
+
+Título: Chamados
+Descrição: Acompanhe os chamados críticos da rede.
+Ação: Novo chamado
+Filtros: unidade, status, prioridade, categoria e período.
+Conteúdo: tabela paginada.
+
+## Cards
+
+Cards devem ser usados para indicadores, resumo de chamados e blocos de informação.
+
+Padrão:
+
+* fundo branco;
+* borda leve;
+* raio médio;
+* sombra sutil;
+* título pequeno;
+* número principal grande;
+* descrição curta;
+* indicador de variação quando existir.
+
+Cards críticos podem usar borda ou ícone em vermelho, mas não devem poluir a tela.
+
+## Tabelas
+
+Tabelas são essenciais no sistema.
+
+Regras:
+
+* nunca carregar lista sem paginação;
+* colunas claras;
+* status com badge;
+* prioridade com badge;
+* data formatada;
+* ação principal sempre visível;
+* filtros acima da tabela;
+* ordenação quando fizer sentido;
+* empty state quando não houver dados.
+
+Tabela de chamados deve exibir:
+
+* número;
+* unidade;
+* categoria;
+* prioridade;
+* status;
+* aberto em;
+* SLA;
+* responsável;
+* ação de detalhes.
+
+## Badges de status
+
+Status devem ter cores consistentes:
+
+* Aberto: cinza/azul;
+* Em triagem: azul;
+* Aguardando aprovação: amarelo;
+* Aprovado: verde;
+* Reprovado: vermelho;
+* Em execução: azul forte;
+* Aguardando fornecedor: laranja;
+* Aguardando unidade: amarelo;
+* Resolvido: verde;
+* Encerrado: verde escuro;
+* Cancelado: cinza.
+
+## Prioridade
+
+Prioridades:
+
+* Baixa: cinza;
+* Média: azul;
+* Alta: laranja;
+* Crítica: vermelho.
+
+Chamado crítico deve ser visualmente evidente, mas sem quebrar o layout.
+
+## Formulários
+
+Formulários devem ser claros e guiados.
+
+Regras:
+
+* labels sempre visíveis;
+* mensagens de erro próximas ao campo;
+* campos obrigatórios marcados;
+* botões com ação clara;
+* confirmação para ações críticas;
+* validação no frontend e backend;
+* textos simples para usuários operacionais.
+
+Formulário de abertura de chamado deve priorizar:
+
+* unidade;
+* categoria;
+* tipo do problema;
+* título;
+* descrição;
+* prioridade percebida;
+* impacto operacional;
+* quantidade de bicos parados;
+* evidências/fotos.
+
+## Dashboard
+
+Dashboard da diretoria deve ser executivo e objetivo.
+
+Indicadores principais:
+
+* chamados abertos;
+* chamados críticos;
+* chamados atrasados;
+* bicos parados;
+* perda estimada;
+* custo aprovado;
+* tempo médio de resolução;
+* SLA geral.
+
+Dashboard da engenharia deve ser operacional.
+
+Indicadores principais:
+
+* fila de triagem;
+* aguardando aprovação;
+* em execução;
+* atrasados;
+* vencendo hoje;
+* aguardando fornecedor.
+
+## Tela de detalhe do chamado
+
+A tela de detalhe deve ter:
+
+* cabeçalho com número, status e prioridade;
+* dados da unidade;
+* descrição do problema;
+* impacto operacional;
+* datas principais;
+* SLA;
+* anexos;
+* histórico;
+* aprovações;
+* comentários;
+* ações permitidas por perfil.
+
+A timeline/histórico deve ser clara e mostrar quem fez cada ação e quando.
+
+## Estados de tela
+
+Toda tela deve tratar:
+
+* loading;
+* erro;
+* vazio;
+* sem permissão;
+* sucesso;
+* confirmação de ação crítica.
+
+Nada deve falhar silenciosamente.
+
+## Tom de texto
+
+Usar linguagem profissional, simples e operacional.
+
+Evitar termos técnicos para gerentes de posto.
+
+Exemplos bons:
+
+* “Chamado aberto com sucesso.”
+* “Aguardando análise da engenharia.”
+* “Anexe uma foto para comprovar a conclusão.”
+* “Este chamado está com SLA vencido.”
+
+Evitar:
+
+* “Payload enviado.”
+* “Mutation failed.”
+* “Erro 500.”
+* “Undefined status.”
+
+## Regras de consistência
+
+* Não criar estilos diferentes para cada tela.
+* Não inventar novas cores fora dos tokens sem necessidade.
+* Não usar componentes soltos quando já existir padrão.
+* Não esconder informação crítica.
+* Não usar mock fixo em tela final.
+* Não encerrar chamado sem evidência.
+* Não alterar status sem confirmação quando a ação for crítica.
+* Não mostrar números de dashboard sem fonte real da API.

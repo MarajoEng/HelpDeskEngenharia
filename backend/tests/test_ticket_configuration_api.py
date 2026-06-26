@@ -1,11 +1,12 @@
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models.enums import UserRole
 from app.models.ticket import Ticket
 from app.models.ticket_custom_field import TicketCustomField
 from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_status import TicketStatusConfig, TicketStatusTransitionConfig
 from app.models.ticket_type import TicketTypeConfig
 from app.services.ticket_configuration_seed import seed_ticket_configurations
 
@@ -90,6 +91,88 @@ async def test_public_ticket_types_and_priorities_hide_inactive_records(
     assert all(item["is_active"] is True for item in priorities_response.json()["items"])
     assert inactive_type.name not in [item["name"] for item in types_response.json()["items"]]
     assert inactive_priority.name not in [item["name"] for item in priorities_response.json()["items"]]
+
+
+@pytest.mark.anyio
+async def test_ticket_status_seed_is_idempotent(db_session) -> None:
+    first = seed_ticket_configurations(db_session)
+    db_session.commit()
+    second = seed_ticket_configurations(db_session)
+    db_session.commit()
+
+    status_count = db_session.scalar(select(func.count()).select_from(TicketStatusConfig))
+    transition_count = db_session.scalar(select(func.count()).select_from(TicketStatusTransitionConfig))
+
+    assert len(first["statuses"]) == len(second["statuses"])
+    assert status_count == len(first["statuses"])
+    assert transition_count == len(first["transitions"])
+
+
+@pytest.mark.anyio
+async def test_admin_can_manage_ticket_statuses_and_transitions(
+    client: httpx.AsyncClient,
+    db_session,
+    create_user,
+    auth_header_for_user,
+) -> None:
+    seeded = seed_ticket_configurations(db_session)
+    db_session.commit()
+    admin = create_user(email="workflow-admin@local.test", role=UserRole.ADMIN)
+    open_status = next(status for status in seeded["statuses"] if status.legacy_value == "open")
+    triage_status = next(status for status in seeded["statuses"] if status.legacy_value == "triage")
+
+    public_response = await client.get("/ticket-statuses")
+    assert public_response.status_code == 200
+    assert any(item["legacy_value"] == "open" for item in public_response.json()["items"])
+
+    create_status_response = await client.post(
+        "/admin/ticket-statuses",
+        headers=auth_header_for_user(admin),
+        json={
+            "name": "Aguardando vistoria",
+            "legacy_value": None,
+            "description": "Status administrativo configuravel.",
+            "color": "#0f766e",
+            "is_initial": False,
+            "is_final": False,
+            "pauses_sla": True,
+            "allows_reopen": False,
+            "is_active": True,
+            "display_order": 500,
+        },
+    )
+    assert create_status_response.status_code == 201
+    created_status = create_status_response.json()
+    assert created_status["legacy_value"] is None
+
+    patch_status_response = await client.patch(
+        f"/admin/ticket-statuses/{created_status['id']}",
+        headers=auth_header_for_user(admin),
+        json={"is_active": False, "display_order": 501},
+    )
+    assert patch_status_response.status_code == 200
+    assert patch_status_response.json()["is_active"] is False
+
+    create_transition_response = await client.post(
+        "/admin/ticket-status-transitions",
+        headers=auth_header_for_user(admin),
+        json={
+            "from_status_id": open_status.id,
+            "to_status_id": created_status["id"],
+            "requires_comment": True,
+            "requires_attachment": False,
+            "allowed_roles_json": ["admin"],
+            "is_active": True,
+        },
+    )
+    assert create_transition_response.status_code == 201
+
+    transition_list_response = await client.get(
+        f"/admin/ticket-status-transitions?from_status_id={open_status.id}",
+        headers=auth_header_for_user(admin),
+    )
+    assert transition_list_response.status_code == 200
+    assert any(item["to_status_id"] == triage_status.id for item in transition_list_response.json()["items"])
 
 
 @pytest.mark.anyio

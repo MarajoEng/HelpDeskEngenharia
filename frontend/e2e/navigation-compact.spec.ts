@@ -5,9 +5,6 @@ import { mockAuthenticatedPortal } from "./support/mockPortal";
 test("compacta a sidebar e preserva navegacao administrativa", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await mockAuthenticatedPortal(page);
-  await page.addInitScript(() => {
-    window.localStorage.setItem("portal_chamados_sidebar_collapsed", "false");
-  });
   await page.goto("/dashboard");
 
   const nav = page.locator("aside nav");
@@ -50,7 +47,7 @@ test("compacta a sidebar e preserva navegacao administrativa", async ({ page }) 
 
   for (const route of routeChecks) {
     await page.goto(route.path);
-    await expect(page.locator("aside nav a.bg-slate-800")).toContainText(route.active);
+    await expect(page.locator('aside nav a[aria-current="page"]')).toContainText(route.active);
   }
 
   await page.goto("/settings/units");

@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+import { mockPortalLogin } from "./support/mockPortal";
+
 test("realiza login local e redireciona para o dashboard", async ({ page }) => {
+  await mockPortalLogin(page);
   await page.goto("/login");
 
   await page.getByLabel("Email").fill("admin@local.test");

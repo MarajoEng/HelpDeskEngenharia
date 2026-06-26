@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.enums import PriorityLevel, TicketCategory, TicketStatus, UserRole
@@ -11,6 +12,7 @@ from app.models.ticket import Ticket
 from app.models.ticket_attachment import TicketAttachment
 from app.models.ticket_category import TicketCategoryConfig
 from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_status import TicketStatusConfig, TicketStatusTransitionConfig
 from app.models.ticket_subcategory import TicketSubcategoryConfig
 from app.models.ticket_type import TicketTypeConfig
 from app.models.user import User
@@ -21,6 +23,11 @@ from app.repositories.ticket_configuration_repository import (
     get_ticket_priority_by_id as get_ticket_config_priority_by_id,
     get_ticket_subcategory_by_id as get_ticket_config_subcategory_by_id,
     get_ticket_type_by_id as get_ticket_config_type_by_id,
+    get_initial_ticket_status,
+    get_ticket_status_by_id as get_ticket_config_status_by_id,
+    get_ticket_status_by_legacy_value,
+    get_ticket_status_transition,
+    list_ticket_status_transitions,
     list_active_ticket_custom_fields_for_scope,
 )
 from app.repositories.ticket_repository import (
@@ -42,6 +49,8 @@ from app.schemas.approval import ApprovalResponse
 from app.schemas.pagination import calculate_pages
 from app.schemas.ticket import (
     TicketCloseRequest,
+    TicketAvailableTransitionResponse,
+    TicketAvailableTransitionsResponse,
     TicketCustomFieldValueResponse,
     TicketDetailResponse,
     TicketHistoryResponse,
@@ -50,6 +59,7 @@ from app.schemas.ticket import (
     TicketResolveRequest,
     TicketStartExecutionRequest,
     TicketSupplierSummary,
+    TicketTransitionRequest,
     TicketUnitSummary,
     TicketUserSummary,
 )
@@ -108,6 +118,18 @@ class TicketResolveTransitionError(ConflictServiceError):
 
 class TicketCloseTransitionError(ConflictServiceError):
     detail = "Ticket cannot be closed from the current status."
+
+
+class TicketConfiguredTransitionError(ConflictServiceError):
+    detail = "Ticket status transition is not allowed."
+
+
+class TicketTransitionCommentRequiredError(ValidationServiceError):
+    detail = "Comment is required for this status transition."
+
+
+class TicketTransitionAttachmentRequiredError(ValidationServiceError):
+    detail = "Attachment is required for this status transition."
 
 
 class MissingClosingEvidenceError(ValidationServiceError):
@@ -379,6 +401,130 @@ def _fallback_priority_name(ticket: Ticket) -> str:
     return mapping[ticket.priority]
 
 
+def _legacy_status_from_config(status: TicketStatusConfig | None, fallback: TicketStatus) -> TicketStatus:
+    if status is None or not status.legacy_value:
+        return fallback
+    try:
+        return TicketStatus(status.legacy_value)
+    except ValueError:
+        return fallback
+
+
+def _fallback_status_name(ticket: Ticket) -> str:
+    if ticket.configured_status is not None:
+        return ticket.configured_status.name
+    mapping = {
+        TicketStatus.OPEN: "Aberto",
+        TicketStatus.TRIAGE: "Triagem",
+        TicketStatus.WAITING_APPROVAL: "Aguardando aprovacao",
+        TicketStatus.APPROVED: "Aprovado",
+        TicketStatus.REJECTED: "Rejeitado",
+        TicketStatus.IN_PROGRESS: "Em atendimento",
+        TicketStatus.WAITING_SUPPLIER: "Aguardando fornecedor",
+        TicketStatus.WAITING_UNIT: "Aguardando unidade",
+        TicketStatus.RESOLVED: "Resolvido",
+        TicketStatus.CLOSED: "Fechado",
+        TicketStatus.CANCELED: "Cancelado",
+    }
+    return mapping.get(ticket.status, ticket.status.value)
+
+
+def _fallback_status_color(ticket: Ticket) -> str:
+    if ticket.configured_status is not None:
+        return ticket.configured_status.color
+    mapping = {
+        TicketStatus.OPEN: "#2563eb",
+        TicketStatus.TRIAGE: "#7c3aed",
+        TicketStatus.WAITING_APPROVAL: "#d97706",
+        TicketStatus.APPROVED: "#059669",
+        TicketStatus.REJECTED: "#dc2626",
+        TicketStatus.IN_PROGRESS: "#0891b2",
+        TicketStatus.WAITING_SUPPLIER: "#9333ea",
+        TicketStatus.WAITING_UNIT: "#ca8a04",
+        TicketStatus.RESOLVED: "#16a34a",
+        TicketStatus.CLOSED: "#475569",
+        TicketStatus.CANCELED: "#991b1b",
+    }
+    return mapping.get(ticket.status, "#475569")
+
+
+def _resolve_current_configured_status(session: Session, ticket: Ticket) -> TicketStatusConfig | None:
+    if ticket.status_id is not None:
+        status = ticket.configured_status or get_ticket_config_status_by_id(session, ticket.status_id)
+        if status is not None:
+            return status
+    return get_ticket_status_by_legacy_value(session, ticket.status.value)
+
+
+def _resolve_configured_status_by_legacy(session: Session, status: TicketStatus) -> TicketStatusConfig | None:
+    return get_ticket_status_by_legacy_value(session, status.value)
+
+
+def _count_ticket_attachments(session: Session, ticket_id: int) -> int:
+    return int(
+        session.scalar(
+            select(func.count()).select_from(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id)
+        )
+        or 0
+    )
+
+
+def _role_is_allowed(transition: TicketStatusTransitionConfig, current_user: User) -> bool:
+    allowed_roles = transition.allowed_roles_json or []
+    if not allowed_roles:
+        return True
+    return current_user.role.value in {role.strip().lower() for role in allowed_roles}
+
+
+def _validate_configured_transition(
+    session: Session,
+    *,
+    ticket: Ticket,
+    to_status: TicketStatus,
+    current_user: User,
+    comment: str | None,
+) -> TicketStatusConfig | None:
+    from_config = _resolve_current_configured_status(session, ticket)
+    to_config = _resolve_configured_status_by_legacy(session, to_status)
+    if from_config is None or to_config is None:
+        return to_config
+
+    transition = get_ticket_status_transition(
+        session,
+        from_status_id=from_config.id,
+        to_status_id=to_config.id,
+    )
+    if transition is None or not transition.is_active:
+        raise TicketConfiguredTransitionError
+    if not _role_is_allowed(transition, current_user):
+        raise TicketPermissionError
+    if transition.requires_comment and not (comment or "").strip():
+        raise TicketTransitionCommentRequiredError
+    if transition.requires_attachment and _count_ticket_attachments(session, ticket.id) == 0:
+        raise TicketTransitionAttachmentRequiredError
+    return to_config
+
+
+def _status_changes(
+    session: Session,
+    *,
+    to_status: TicketStatus,
+    fallback_status: TicketStatus | None = None,
+) -> dict[str, object]:
+    configured_status = _resolve_configured_status_by_legacy(session, to_status)
+    legacy_status = _legacy_status_from_config(configured_status, fallback_status or to_status)
+    return {
+        "status": legacy_status,
+        "status_id": configured_status.id if configured_status else None,
+    }
+
+
+def _set_legacy_status_id(session: Session, ticket: Ticket, status: TicketStatus) -> None:
+    configured_status = _resolve_configured_status_by_legacy(session, status)
+    if configured_status is not None:
+        ticket.status_id = configured_status.id
+
+
 def _resolve_ticket_category_config(
     session: Session,
     category_id: int | None,
@@ -530,6 +676,9 @@ def _to_ticket_response(ticket: Ticket) -> TicketResponse:
             "priority_weight": ticket.configured_priority.weight if ticket.configured_priority else None,
             "severity": ticket.severity,
             "status": ticket.status,
+            "status_id": ticket.status_id,
+            "status_name": _fallback_status_name(ticket),
+            "status_color": _fallback_status_color(ticket),
             "operational_impact": ticket.operational_impact,
             "fuel_nozzles_stopped": ticket.fuel_nozzles_stopped,
             "estimated_daily_loss": ticket.estimated_daily_loss,
@@ -729,6 +878,9 @@ def build_ticket_detail_response(ticket: Ticket) -> TicketDetailResponse:
         priority_weight=ticket.configured_priority.weight if ticket.configured_priority else None,
         severity=ticket.severity,
         status=ticket.status,
+        status_id=ticket.status_id,
+        status_name=_fallback_status_name(ticket),
+        status_color=_fallback_status_color(ticket),
         operational_impact=ticket.operational_impact,
         fuel_nozzles_stopped=ticket.fuel_nozzles_stopped,
         estimated_daily_loss=ticket.estimated_daily_loss,
@@ -811,6 +963,8 @@ def create_ticket_record(session: Session, payload: TicketCreate, current_user: 
     )
 
     opened_at = datetime.now(UTC)
+    initial_status = get_initial_ticket_status(session)
+    legacy_initial_status = _legacy_status_from_config(initial_status, TicketStatus.OPEN)
     ticket = create_ticket(
         session,
         ticket_number=f"PENDING-{opened_at.strftime('%Y%m%d%H%M%S%f')}",
@@ -827,7 +981,8 @@ def create_ticket_record(session: Session, payload: TicketCreate, current_user: 
         description=payload.description,
         priority=legacy_priority,
         severity=payload.severity,
-        status=TicketStatus.OPEN,
+        status=legacy_initial_status,
+        status_id=initial_status.id if initial_status else None,
         operational_impact=payload.operational_impact,
         fuel_nozzles_stopped=payload.fuel_nozzles_stopped,
         estimated_daily_loss=payload.estimated_daily_loss,
@@ -858,7 +1013,7 @@ def create_ticket_record(session: Session, payload: TicketCreate, current_user: 
         ticket_id=ticket.id,
         user_id=current_user.id,
         old_status=None,
-        new_status=TicketStatus.OPEN,
+        new_status=legacy_initial_status,
         comment="Chamado aberto",
     )
     session.commit()
@@ -897,6 +1052,7 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         subcategory_id=scoped_params.subcategory_id,
         type_id=scoped_params.type_id,
         priority_id=scoped_params.priority_id,
+        status_id=scoped_params.status_id,
         status=scoped_params.status,
         category=scoped_params.category,
         category_legacy_value=category_legacy_value,
@@ -922,6 +1078,7 @@ def list_ticket_records(session: Session, params: TicketListParams, current_user
         subcategory_id=scoped_params.subcategory_id,
         type_id=scoped_params.type_id,
         priority_id=scoped_params.priority_id,
+        status_id=scoped_params.status_id,
         status=scoped_params.status,
         category=scoped_params.category,
         category_legacy_value=category_legacy_value,
@@ -953,6 +1110,123 @@ def get_ticket_detail(session: Session, ticket_id: int, current_user: User) -> T
         raise TicketNotFoundError
     _ensure_ticket_can_be_viewed(current_user, ticket)
     return build_ticket_detail_response(ticket)
+
+
+def get_available_ticket_transitions(
+    session: Session,
+    ticket_id: int,
+    current_user: User,
+) -> TicketAvailableTransitionsResponse:
+    ticket = get_ticket_detail_by_id(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
+    _ensure_ticket_can_be_viewed(current_user, ticket)
+
+    current_status = _resolve_current_configured_status(session, ticket)
+    if current_status is None:
+        return TicketAvailableTransitionsResponse(
+            ticket_id=ticket.id,
+            current_status_id=None,
+            current_status_name=_fallback_status_name(ticket),
+            transitions=[],
+        )
+
+    transitions = [
+        transition
+        for transition in list_ticket_status_transitions(
+            session,
+            page=1,
+            page_size=100,
+            from_status_id=current_status.id,
+            is_active=True,
+        )
+        if transition.to_status is not None and transition.to_status.is_active and _role_is_allowed(transition, current_user)
+    ]
+    return TicketAvailableTransitionsResponse(
+        ticket_id=ticket.id,
+        current_status_id=current_status.id,
+        current_status_name=current_status.name,
+        transitions=[
+            TicketAvailableTransitionResponse(
+                transition_id=transition.id,
+                from_status_id=transition.from_status_id,
+                to_status_id=transition.to_status_id,
+                to_status_name=transition.to_status.name,
+                to_status_color=transition.to_status.color,
+                requires_comment=transition.requires_comment,
+                requires_attachment=transition.requires_attachment,
+            )
+            for transition in transitions
+        ],
+    )
+
+
+def transition_ticket_status(
+    session: Session,
+    ticket_id: int,
+    payload: TicketTransitionRequest,
+    current_user: User,
+) -> TicketDetailResponse:
+    _enforce_execution_permission(current_user)
+
+    ticket = get_ticket_for_update(session, ticket_id)
+    if ticket is None:
+        raise TicketNotFoundError
+    to_status_config = get_ticket_config_status_by_id(session, payload.to_status_id)
+    if to_status_config is None or not to_status_config.is_active:
+        raise TicketConfiguredTransitionError
+
+    to_legacy_status = _legacy_status_from_config(to_status_config, ticket.status)
+    if (
+        to_legacy_status == TicketStatus.RESOLVED
+        and count_attachments_by_ticket_and_type(
+            session,
+            ticket_id=ticket.id,
+            attachment_type=_CLOSING_ATTACHMENT_TYPE,
+        )
+        == 0
+    ):
+        raise MissingClosingEvidenceError
+    validated_status = _validate_configured_transition(
+        session,
+        ticket=ticket,
+        to_status=to_legacy_status,
+        current_user=current_user,
+        comment=payload.comment,
+    )
+    if validated_status is None or validated_status.id != to_status_config.id:
+        raise TicketConfiguredTransitionError
+
+    old_status = ticket.status
+    changes = {
+        "status": to_legacy_status,
+        "status_id": to_status_config.id,
+    }
+    now = datetime.now(UTC)
+    if to_legacy_status == TicketStatus.TRIAGE and ticket.triaged_at is None:
+        changes["triaged_at"] = now
+    if to_legacy_status == TicketStatus.IN_PROGRESS and ticket.started_at is None:
+        changes["started_at"] = now
+    if to_legacy_status == TicketStatus.RESOLVED and ticket.resolved_at is None:
+        changes["resolved_at"] = now
+    if to_legacy_status == TicketStatus.CLOSED and ticket.closed_at is None:
+        changes["closed_at"] = now
+
+    update_ticket(session, ticket, **changes)
+    create_ticket_history(
+        session,
+        ticket_id=ticket.id,
+        user_id=current_user.id,
+        old_status=old_status,
+        new_status=to_legacy_status,
+        comment=payload.comment,
+    )
+    session.commit()
+
+    persisted_ticket = get_ticket_detail_by_id(session, ticket.id)
+    if persisted_ticket is None:
+        raise TicketNotFoundError
+    return build_ticket_detail_response(persisted_ticket)
 
 
 def _enforce_triage_permission(current_user: User) -> None:
@@ -1025,7 +1299,14 @@ def triage_ticket(
 
     old_status = ticket.status
     if ticket.status in {TicketStatus.OPEN, TicketStatus.WAITING_UNIT}:
-        changes["status"] = TicketStatus.TRIAGE
+        _validate_configured_transition(
+            session,
+            ticket=ticket,
+            to_status=TicketStatus.TRIAGE,
+            current_user=current_user,
+            comment=payload.technical_comment,
+        )
+        changes.update(_status_changes(session, to_status=TicketStatus.TRIAGE))
         if ticket.triaged_at is None:
             changes["triaged_at"] = datetime.now(UTC)
 
@@ -1075,12 +1356,19 @@ def start_ticket_execution(
 
     _validate_assigned_user(session, payload.assigned_to_user_id)
     _validate_supplier(session, payload.supplier_id)
+    _validate_configured_transition(
+        session,
+        ticket=ticket,
+        to_status=TicketStatus.IN_PROGRESS,
+        current_user=current_user,
+        comment=payload.execution_comment,
+    )
 
     now = datetime.now(UTC)
     changes: dict[str, object] = {
-        "status": TicketStatus.IN_PROGRESS,
         "started_at": now,
     }
+    changes.update(_status_changes(session, to_status=TicketStatus.IN_PROGRESS))
     if payload.assigned_to_user_id is not None:
         changes["assigned_to_user_id"] = payload.assigned_to_user_id
     if payload.supplier_id is not None:
@@ -1174,11 +1462,18 @@ def resolve_ticket(
         attachment_type=_CLOSING_ATTACHMENT_TYPE,
     ) == 0:
         raise MissingClosingEvidenceError
+    _validate_configured_transition(
+        session,
+        ticket=ticket,
+        to_status=TicketStatus.RESOLVED,
+        current_user=current_user,
+        comment=payload.solution_description,
+    )
 
     changes: dict[str, object] = {
-        "status": TicketStatus.RESOLVED,
         "final_cost": payload.final_cost,
     }
+    changes.update(_status_changes(session, to_status=TicketStatus.RESOLVED))
     if ticket.resolved_at is None:
         changes["resolved_at"] = datetime.now(UTC)
 
@@ -1213,10 +1508,15 @@ def close_ticket(
         raise TicketNotFoundError
     if ticket.status != TicketStatus.RESOLVED:
         raise TicketCloseTransitionError
+    _validate_configured_transition(
+        session,
+        ticket=ticket,
+        to_status=TicketStatus.CLOSED,
+        current_user=current_user,
+        comment=payload.close_comment,
+    )
 
-    changes: dict[str, object] = {
-        "status": TicketStatus.CLOSED,
-    }
+    changes: dict[str, object] = _status_changes(session, to_status=TicketStatus.CLOSED)
     if ticket.closed_at is None:
         changes["closed_at"] = datetime.now(UTC)
 

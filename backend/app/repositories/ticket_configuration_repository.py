@@ -7,6 +7,7 @@ from app.models.ticket_category import TicketCategoryConfig
 from app.models.ticket_category_type import TicketCategoryTypeLink
 from app.models.ticket_custom_field import TicketCustomField
 from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_status import TicketStatusConfig, TicketStatusTransitionConfig
 from app.models.ticket_subcategory import TicketSubcategoryConfig
 from app.models.ticket_type import TicketTypeConfig
 
@@ -446,3 +447,171 @@ def update_ticket_custom_field(
     session.add(custom_field)
     session.flush()
     return custom_field
+
+
+def create_ticket_status(session: Session, **payload: object) -> TicketStatusConfig:
+    status = TicketStatusConfig(**payload)
+    session.add(status)
+    session.flush()
+    return status
+
+
+def get_ticket_status_by_id(session: Session, status_id: int) -> TicketStatusConfig | None:
+    statement = select(TicketStatusConfig).where(TicketStatusConfig.id == status_id).limit(1)
+    return session.scalar(statement)
+
+
+def get_ticket_status_by_name(session: Session, name: str) -> TicketStatusConfig | None:
+    statement = (
+        select(TicketStatusConfig)
+        .where(func.lower(TicketStatusConfig.name) == name.strip().lower())
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
+def get_ticket_status_by_legacy_value(session: Session, legacy_value: str) -> TicketStatusConfig | None:
+    statement = (
+        select(TicketStatusConfig)
+        .where(TicketStatusConfig.legacy_value == legacy_value)
+        .order_by(TicketStatusConfig.display_order.asc(), TicketStatusConfig.id.asc())
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
+def get_initial_ticket_status(session: Session) -> TicketStatusConfig | None:
+    statement = (
+        select(TicketStatusConfig)
+        .where(TicketStatusConfig.is_active.is_(True), TicketStatusConfig.is_initial.is_(True))
+        .order_by(TicketStatusConfig.display_order.asc(), TicketStatusConfig.id.asc())
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
+def list_ticket_statuses(
+    session: Session,
+    *,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    is_active: bool | None = None,
+    sort: str = "display_order_asc",
+) -> list[TicketStatusConfig]:
+    statement = select(TicketStatusConfig)
+    statement = _apply_named_filters(statement, model=TicketStatusConfig, search=search, is_active=is_active)
+    statement = _apply_sort(statement, model=TicketStatusConfig, sort=sort)
+    statement = statement.offset((page - 1) * page_size).limit(page_size)
+    return list(session.scalars(statement).all())
+
+
+def count_ticket_statuses(
+    session: Session,
+    *,
+    search: str | None = None,
+    is_active: bool | None = None,
+) -> int:
+    statement = select(func.count()).select_from(TicketStatusConfig)
+    statement = _apply_named_filters(statement, model=TicketStatusConfig, search=search, is_active=is_active)
+    return int(session.scalar(statement) or 0)
+
+
+def update_ticket_status(
+    session: Session,
+    status: TicketStatusConfig,
+    **changes: object,
+) -> TicketStatusConfig:
+    for field, value in changes.items():
+        setattr(status, field, value)
+    session.add(status)
+    session.flush()
+    return status
+
+
+def create_ticket_status_transition(session: Session, **payload: object) -> TicketStatusTransitionConfig:
+    transition = TicketStatusTransitionConfig(**payload)
+    session.add(transition)
+    session.flush()
+    return transition
+
+
+def get_ticket_status_transition_by_id(session: Session, transition_id: int) -> TicketStatusTransitionConfig | None:
+    statement = (
+        select(TicketStatusTransitionConfig)
+        .options(
+            selectinload(TicketStatusTransitionConfig.from_status),
+            selectinload(TicketStatusTransitionConfig.to_status),
+        )
+        .where(TicketStatusTransitionConfig.id == transition_id)
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
+def get_ticket_status_transition(
+    session: Session,
+    *,
+    from_status_id: int,
+    to_status_id: int,
+) -> TicketStatusTransitionConfig | None:
+    statement = (
+        select(TicketStatusTransitionConfig)
+        .options(
+            selectinload(TicketStatusTransitionConfig.from_status),
+            selectinload(TicketStatusTransitionConfig.to_status),
+        )
+        .where(
+            TicketStatusTransitionConfig.from_status_id == from_status_id,
+            TicketStatusTransitionConfig.to_status_id == to_status_id,
+        )
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
+def list_ticket_status_transitions(
+    session: Session,
+    *,
+    page: int,
+    page_size: int,
+    from_status_id: int | None = None,
+    is_active: bool | None = None,
+) -> list[TicketStatusTransitionConfig]:
+    statement = select(TicketStatusTransitionConfig).options(
+        selectinload(TicketStatusTransitionConfig.from_status),
+        selectinload(TicketStatusTransitionConfig.to_status),
+    )
+    if from_status_id is not None:
+        statement = statement.where(TicketStatusTransitionConfig.from_status_id == from_status_id)
+    if is_active is not None:
+        statement = statement.where(TicketStatusTransitionConfig.is_active.is_(is_active))
+    statement = statement.order_by(TicketStatusTransitionConfig.from_status_id.asc(), TicketStatusTransitionConfig.to_status_id.asc())
+    statement = statement.offset((page - 1) * page_size).limit(page_size)
+    return list(session.scalars(statement).all())
+
+
+def count_ticket_status_transitions(
+    session: Session,
+    *,
+    from_status_id: int | None = None,
+    is_active: bool | None = None,
+) -> int:
+    statement = select(func.count()).select_from(TicketStatusTransitionConfig)
+    if from_status_id is not None:
+        statement = statement.where(TicketStatusTransitionConfig.from_status_id == from_status_id)
+    if is_active is not None:
+        statement = statement.where(TicketStatusTransitionConfig.is_active.is_(is_active))
+    return int(session.scalar(statement) or 0)
+
+
+def update_ticket_status_transition(
+    session: Session,
+    transition: TicketStatusTransitionConfig,
+    **changes: object,
+) -> TicketStatusTransitionConfig:
+    for field, value in changes.items():
+        setattr(transition, field, value)
+    session.add(transition)
+    session.flush()
+    return transition

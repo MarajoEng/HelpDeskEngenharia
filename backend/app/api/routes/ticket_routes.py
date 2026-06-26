@@ -11,7 +11,15 @@ from app.api.dependencies import get_current_user
 from app.core.database import get_db_session
 from app.models.enums import PriorityLevel, TicketCategory, TicketSeverity, TicketStatus
 from app.models.user import User
-from app.schemas import TicketCreate, TicketListParams, TicketListResponse, TicketResponse, TicketTriageRequest
+from app.schemas import (
+    TicketAvailableTransitionsResponse,
+    TicketCreate,
+    TicketListParams,
+    TicketListResponse,
+    TicketResponse,
+    TicketTransitionRequest,
+    TicketTriageRequest,
+)
 from app.schemas.approval import ApprovalDecisionRequest, ApprovalRequestCreate
 from app.schemas.ticket import (
     TicketCloseRequest,
@@ -29,11 +37,13 @@ from app.services.ticket_service import (
     close_ticket,
     create_ticket_record,
     get_ticket_detail,
+    get_available_ticket_transitions,
     list_ticket_records,
     list_ticket_triage_assignees,
     resolve_ticket,
     start_ticket_execution,
     triage_ticket,
+    transition_ticket_status,
     update_ticket_progress,
 )
 from app.services.ticket_configuration_service import get_ticket_form_schema
@@ -54,6 +64,7 @@ def _build_list_params(
     subcategory_id: int | None = Query(default=None, ge=1),
     type_id: int | None = Query(default=None, ge=1),
     priority_id: int | None = Query(default=None, ge=1),
+    status_id: int | None = Query(default=None, ge=1),
     status_filter: TicketStatus | None = Query(default=None, alias="status"),
     category: TicketCategory | None = Query(default=None),
     priority: PriorityLevel | None = Query(default=None),
@@ -76,6 +87,7 @@ def _build_list_params(
         subcategory_id=subcategory_id,
         type_id=type_id,
         priority_id=priority_id,
+        status_id=status_id,
         status=status_filter,
         category=category,
         priority=priority,
@@ -168,6 +180,44 @@ def read_ticket(
         return get_ticket_detail(session, ticket_id, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+
+@router.get("/{ticket_id}/available-transitions", response_model=TicketAvailableTransitionsResponse)
+def read_ticket_available_transitions(
+    ticket_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketAvailableTransitionsResponse:
+    try:
+        return get_available_ticket_transitions(session, ticket_id, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.patch("/{ticket_id}/transition", response_model=TicketDetailResponse)
+def patch_ticket_transition(
+    ticket_id: int,
+    payload: TicketTransitionRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketDetailResponse:
+    try:
+        result = transition_ticket_status(session, ticket_id, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+    log_action(
+        session,
+        actor_user=current_user,
+        action="ticket_status_transitioned",
+        entity_type="ticket",
+        entity_id=ticket_id,
+        request=request,
+        metadata={"to_status_id": payload.to_status_id},
+    )
+    session.commit()
+    return result
 
 
 @router.patch("/{ticket_id}/triage", response_model=TicketDetailResponse)

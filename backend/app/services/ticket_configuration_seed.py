@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ticket_category import TicketCategoryConfig
 from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_status import TicketStatusConfig, TicketStatusTransitionConfig
 from app.models.ticket_subcategory import TicketSubcategoryConfig
 from app.models.ticket_type import TicketTypeConfig
 from app.repositories.ticket_configuration_repository import replace_ticket_category_types
@@ -173,11 +174,156 @@ PRIORITY_SEED = [
     },
 ]
 
+STATUS_SEED = [
+    {
+        "name": "Aberto",
+        "legacy_value": "open",
+        "description": "Chamado aberto aguardando triagem.",
+        "color": "#2563eb",
+        "is_initial": True,
+        "is_final": False,
+        "pauses_sla": False,
+        "allows_reopen": False,
+        "display_order": 10,
+    },
+    {
+        "name": "Triagem",
+        "legacy_value": "triage",
+        "description": "Chamado em analise tecnica.",
+        "color": "#7c3aed",
+        "is_initial": False,
+        "is_final": False,
+        "pauses_sla": False,
+        "allows_reopen": False,
+        "display_order": 20,
+    },
+    {
+        "name": "Aguardando aprovacao",
+        "legacy_value": "waiting_approval",
+        "description": "Chamado aguardando aprovacao.",
+        "color": "#d97706",
+        "is_initial": False,
+        "is_final": False,
+        "pauses_sla": True,
+        "allows_reopen": False,
+        "display_order": 30,
+    },
+    {
+        "name": "Aprovado",
+        "legacy_value": "approved",
+        "description": "Chamado aprovado para execucao.",
+        "color": "#059669",
+        "is_initial": False,
+        "is_final": False,
+        "pauses_sla": False,
+        "allows_reopen": False,
+        "display_order": 40,
+    },
+    {
+        "name": "Rejeitado",
+        "legacy_value": "rejected",
+        "description": "Chamado rejeitado no fluxo de aprovacao.",
+        "color": "#dc2626",
+        "is_initial": False,
+        "is_final": True,
+        "pauses_sla": False,
+        "allows_reopen": True,
+        "display_order": 50,
+    },
+    {
+        "name": "Em atendimento",
+        "legacy_value": "in_progress",
+        "description": "Chamado em execucao.",
+        "color": "#0891b2",
+        "is_initial": False,
+        "is_final": False,
+        "pauses_sla": False,
+        "allows_reopen": False,
+        "display_order": 60,
+    },
+    {
+        "name": "Aguardando fornecedor",
+        "legacy_value": "waiting_supplier",
+        "description": "Chamado pausado aguardando fornecedor.",
+        "color": "#9333ea",
+        "is_initial": False,
+        "is_final": False,
+        "pauses_sla": True,
+        "allows_reopen": False,
+        "display_order": 70,
+    },
+    {
+        "name": "Aguardando unidade",
+        "legacy_value": "waiting_unit",
+        "description": "Chamado pausado aguardando unidade.",
+        "color": "#ca8a04",
+        "is_initial": False,
+        "is_final": False,
+        "pauses_sla": True,
+        "allows_reopen": False,
+        "display_order": 80,
+    },
+    {
+        "name": "Resolvido",
+        "legacy_value": "resolved",
+        "description": "Chamado resolvido aguardando fechamento.",
+        "color": "#16a34a",
+        "is_initial": False,
+        "is_final": True,
+        "pauses_sla": False,
+        "allows_reopen": True,
+        "display_order": 90,
+    },
+    {
+        "name": "Fechado",
+        "legacy_value": "closed",
+        "description": "Chamado fechado.",
+        "color": "#475569",
+        "is_initial": False,
+        "is_final": True,
+        "pauses_sla": False,
+        "allows_reopen": False,
+        "display_order": 100,
+    },
+    {
+        "name": "Cancelado",
+        "legacy_value": "canceled",
+        "description": "Chamado cancelado.",
+        "color": "#991b1b",
+        "is_initial": False,
+        "is_final": True,
+        "pauses_sla": False,
+        "allows_reopen": True,
+        "display_order": 110,
+    },
+]
+
+TRANSITION_SEED = [
+    ("open", "triage", True, False, ["admin", "engineering"]),
+    ("waiting_unit", "triage", True, False, ["admin", "engineering"]),
+    ("triage", "waiting_approval", True, False, ["admin", "engineering"]),
+    ("triage", "in_progress", True, False, ["admin", "engineering"]),
+    ("waiting_approval", "approved", True, False, None),
+    ("waiting_approval", "rejected", True, False, None),
+    ("approved", "in_progress", True, False, ["admin", "engineering"]),
+    ("in_progress", "waiting_supplier", True, False, ["admin", "engineering"]),
+    ("in_progress", "waiting_unit", True, False, ["admin", "engineering"]),
+    ("waiting_supplier", "in_progress", True, False, ["admin", "engineering"]),
+    ("waiting_unit", "in_progress", True, False, ["admin", "engineering"]),
+    ("in_progress", "resolved", True, True, ["admin", "engineering"]),
+    ("resolved", "closed", True, False, ["admin", "engineering"]),
+    ("resolved", "in_progress", True, False, ["admin", "engineering"]),
+    ("rejected", "triage", True, False, ["admin", "engineering"]),
+    ("canceled", "triage", True, False, ["admin"]),
+]
+
 
 def seed_ticket_configurations(session: Session) -> dict[str, list]:
     types_by_name: dict[str, TicketTypeConfig] = {}
     categories_by_name: dict[str, TicketCategoryConfig] = {}
     priorities: list[TicketPriorityConfig] = []
+    statuses_by_legacy: dict[str, TicketStatusConfig] = {}
+    transitions: list[TicketStatusTransitionConfig] = []
     subcategories: list[TicketSubcategoryConfig] = []
 
     for data in TYPE_SEED:
@@ -263,9 +409,58 @@ def seed_ticket_configurations(session: Session) -> dict[str, list]:
             priority.is_active = True
         priorities.append(priority)
 
+    for data in STATUS_SEED:
+        status = session.scalar(
+            select(TicketStatusConfig).where(TicketStatusConfig.legacy_value == data["legacy_value"])
+        )
+        if status is None:
+            status = TicketStatusConfig(**data, is_active=True)
+            session.add(status)
+            session.flush()
+        else:
+            status.name = data["name"]
+            status.description = data["description"]
+            status.color = data["color"]
+            status.is_initial = data["is_initial"]
+            status.is_final = data["is_final"]
+            status.pauses_sla = data["pauses_sla"]
+            status.allows_reopen = data["allows_reopen"]
+            status.display_order = data["display_order"]
+            status.is_active = True
+        statuses_by_legacy[data["legacy_value"]] = status
+
+    for from_legacy, to_legacy, requires_comment, requires_attachment, allowed_roles in TRANSITION_SEED:
+        from_status = statuses_by_legacy[from_legacy]
+        to_status = statuses_by_legacy[to_legacy]
+        transition = session.scalar(
+            select(TicketStatusTransitionConfig).where(
+                TicketStatusTransitionConfig.from_status_id == from_status.id,
+                TicketStatusTransitionConfig.to_status_id == to_status.id,
+            )
+        )
+        if transition is None:
+            transition = TicketStatusTransitionConfig(
+                from_status_id=from_status.id,
+                to_status_id=to_status.id,
+                requires_comment=requires_comment,
+                requires_attachment=requires_attachment,
+                allowed_roles_json=allowed_roles,
+                is_active=True,
+            )
+            session.add(transition)
+            session.flush()
+        else:
+            transition.requires_comment = requires_comment
+            transition.requires_attachment = requires_attachment
+            transition.allowed_roles_json = allowed_roles
+            transition.is_active = True
+        transitions.append(transition)
+
     return {
         "categories": list(categories_by_name.values()),
         "subcategories": subcategories,
         "types": list(types_by_name.values()),
         "priorities": priorities,
+        "statuses": list(statuses_by_legacy.values()),
+        "transitions": transitions,
     }

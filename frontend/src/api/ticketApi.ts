@@ -1,6 +1,7 @@
 import { requestJson } from "./http";
 import type {
   Ticket,
+  TicketAvailableTransitionsResponse,
   TicketApprovalDecisionPayload,
   TicketApprovalRequestPayload,
   TicketClosePayload,
@@ -12,6 +13,7 @@ import type {
   TicketResolvePayload,
   TicketStartExecutionPayload,
   TicketTriagePayload,
+  TicketTransitionPayload,
 } from "../types/ticket";
 import type { UserFilters, UserListResponse } from "../types/user";
 
@@ -49,6 +51,12 @@ export function listTickets(token: string, filters: TicketFilters) {
 
 export function getTicketById(token: string, ticketId: number) {
   return requestJson<TicketDetail>(`/tickets/${ticketId}`, {
+    headers: authHeaders(token),
+  });
+}
+
+export function getTicketAvailableTransitions(token: string, ticketId: number) {
+  return requestJson<TicketAvailableTransitionsResponse>(`/tickets/${ticketId}/available-transitions`, {
     headers: authHeaders(token),
   });
 }
@@ -119,6 +127,14 @@ export function resolveTicket(token: string, ticketId: number, payload: TicketRe
 
 export function closeTicket(token: string, ticketId: number, payload: TicketClosePayload) {
   return requestJson<TicketDetail>(`/tickets/${ticketId}/close`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function transitionTicketStatus(token: string, ticketId: number, payload: TicketTransitionPayload) {
+  return requestJson<TicketDetail>(`/tickets/${ticketId}/transition`, {
     method: "PATCH",
     headers: authHeaders(token),
     body: JSON.stringify(payload),

@@ -31,6 +31,11 @@ class TicketCustomFieldListParams(TicketConfigurationPageParams):
     subcategory_id: int | None = None
 
 
+class TicketStatusTransitionListParams(PageParams):
+    from_status_id: int | None = Field(default=None, ge=1)
+    is_active: bool | None = None
+
+
 CustomFieldType = Literal["text", "textarea", "number", "boolean", "select", "date"]
 
 
@@ -468,4 +473,157 @@ class TicketPriorityResponse(BaseModel):
 
 
 class TicketPriorityListResponse(PaginatedResponse[TicketPriorityResponse]):
+    pass
+
+
+class TicketStatusBase(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    legacy_value: str | None = Field(default=None, max_length=50)
+    description: str | None = None
+    color: str = Field(min_length=1, max_length=32)
+    is_initial: bool = False
+    is_final: bool = False
+    pauses_sla: bool = False
+    allows_reopen: bool = False
+    is_active: bool = True
+    display_order: int = Field(default=0, ge=0)
+
+    @field_validator("name", "color")
+    @classmethod
+    def strip_required_status_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Field cannot be empty.")
+        return normalized
+
+    @field_validator("legacy_value", "description")
+    @classmethod
+    def strip_optional_status_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        return normalized or None
+
+
+class TicketStatusCreate(TicketStatusBase):
+    pass
+
+
+class TicketStatusUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    legacy_value: str | None = Field(default=None, max_length=50)
+    description: str | None = None
+    color: str | None = Field(default=None, min_length=1, max_length=32)
+    is_initial: bool | None = None
+    is_final: bool | None = None
+    pauses_sla: bool | None = None
+    allows_reopen: bool | None = None
+    is_active: bool | None = None
+    display_order: int | None = Field(default=None, ge=0)
+
+    @field_validator("name", "color")
+    @classmethod
+    def strip_optional_required_status_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Field cannot be empty.")
+        return normalized
+
+    @field_validator("legacy_value", "description")
+    @classmethod
+    def strip_optional_status_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        return normalized or None
+
+
+class TicketStatusResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    legacy_value: str | None = None
+    description: str | None
+    color: str
+    is_initial: bool
+    is_final: bool
+    pauses_sla: bool
+    allows_reopen: bool
+    is_active: bool
+    display_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class TicketStatusListResponse(PaginatedResponse[TicketStatusResponse]):
+    pass
+
+
+class TicketStatusTransitionBase(BaseModel):
+    from_status_id: int = Field(ge=1)
+    to_status_id: int = Field(ge=1)
+    requires_comment: bool = False
+    requires_attachment: bool = False
+    allowed_roles_json: list[str] | None = None
+    is_active: bool = True
+
+    @field_validator("allowed_roles_json")
+    @classmethod
+    def normalize_allowed_roles(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return value
+        normalized: list[str] = []
+        for item in value:
+            role = item.strip().lower()
+            if role and role not in normalized:
+                normalized.append(role)
+        return normalized or None
+
+
+class TicketStatusTransitionCreate(TicketStatusTransitionBase):
+    pass
+
+
+class TicketStatusTransitionUpdate(BaseModel):
+    from_status_id: int | None = Field(default=None, ge=1)
+    to_status_id: int | None = Field(default=None, ge=1)
+    requires_comment: bool | None = None
+    requires_attachment: bool | None = None
+    allowed_roles_json: list[str] | None = None
+    is_active: bool | None = None
+
+    @field_validator("allowed_roles_json")
+    @classmethod
+    def normalize_allowed_roles(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return value
+        normalized: list[str] = []
+        for item in value:
+            role = item.strip().lower()
+            if role and role not in normalized:
+                normalized.append(role)
+        return normalized or None
+
+
+class TicketStatusTransitionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    from_status_id: int
+    from_status_name: str
+    to_status_id: int
+    to_status_name: str
+    to_status_color: str
+    requires_comment: bool
+    requires_attachment: bool
+    allowed_roles_json: list[str] | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class TicketStatusTransitionListResponse(PaginatedResponse[TicketStatusTransitionResponse]):
     pass

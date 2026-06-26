@@ -27,6 +27,7 @@ class Ticket(TimestampMixin, Base):
         Index("ix_tickets_subcategory_id", "subcategory_id"),
         Index("ix_tickets_type_id", "type_id"),
         Index("ix_tickets_priority_id", "priority_id"),
+        Index("ix_tickets_status_id", "status_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -38,6 +39,7 @@ class Ticket(TimestampMixin, Base):
     subcategory_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_subcategories.id"))
     type_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_types.id"))
     priority_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_priorities.id"))
+    status_id: Mapped[int | None] = mapped_column(ForeignKey("ticket_statuses.id"))
     category: Mapped[TicketCategory] = mapped_column(
         Enum(
             TicketCategory,
@@ -128,6 +130,10 @@ class Ticket(TimestampMixin, Base):
     )
     configured_priority: Mapped["TicketPriorityConfig | None"] = relationship(
         foreign_keys=[priority_id],
+    )
+    configured_status: Mapped["TicketStatusConfig | None"] = relationship(
+        back_populates="tickets",
+        foreign_keys=[status_id],
     )
     history_entries: Mapped[list["TicketHistory"]] = relationship(
         back_populates="ticket",

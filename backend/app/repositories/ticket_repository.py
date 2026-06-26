@@ -13,6 +13,7 @@ from app.models.approval import Approval
 from app.models.supplier import Supplier
 from app.models.ticket_custom_field import TicketCustomFieldValue
 from app.models.ticket_history import TicketHistory
+from app.models.ticket_status import TicketStatusConfig
 from app.models.unit import Unit
 
 _FINAL_STATUSES = [TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELED]
@@ -33,6 +34,7 @@ def _ticket_base_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.configured_subcategory),
         selectinload(Ticket.configured_type),
         selectinload(Ticket.configured_priority),
+        selectinload(Ticket.configured_status),
         selectinload(Ticket.attachments),
         selectinload(Ticket.custom_field_values).selectinload(TicketCustomFieldValue.custom_field),
     )
@@ -48,6 +50,7 @@ def _ticket_detail_query() -> Select[tuple[Ticket]]:
         selectinload(Ticket.configured_subcategory),
         selectinload(Ticket.configured_type),
         selectinload(Ticket.configured_priority),
+        selectinload(Ticket.configured_status),
         selectinload(Ticket.history_entries).selectinload(TicketHistory.user),
         selectinload(Ticket.attachments).selectinload(TicketAttachment.uploaded_by_user),
         selectinload(Ticket.custom_field_values).selectinload(TicketCustomFieldValue.custom_field),
@@ -65,6 +68,7 @@ def _apply_ticket_filters(
     subcategory_id: int | None = None,
     type_id: int | None = None,
     priority_id: int | None = None,
+    status_id: int | None = None,
     status: str | None = None,
     category: str | None = None,
     category_legacy_value: str | None = None,
@@ -107,6 +111,8 @@ def _apply_ticket_filters(
             )
         else:
             statement = statement.where(Ticket.priority_id == priority_id)
+    if status_id is not None:
+        statement = statement.where(Ticket.status_id == status_id)
     if status is not None:
         statement = statement.where(Ticket.status == status)
     if category is not None:
@@ -228,6 +234,7 @@ def list_tickets(
     subcategory_id: int | None = None,
     type_id: int | None = None,
     priority_id: int | None = None,
+    status_id: int | None = None,
     status: str | None = None,
     category: str | None = None,
     category_legacy_value: str | None = None,
@@ -252,6 +259,7 @@ def list_tickets(
         subcategory_id=subcategory_id,
         type_id=type_id,
         priority_id=priority_id,
+        status_id=status_id,
         status=status,
         category=category,
         category_legacy_value=category_legacy_value,
@@ -281,6 +289,7 @@ def count_tickets(
     subcategory_id: int | None = None,
     type_id: int | None = None,
     priority_id: int | None = None,
+    status_id: int | None = None,
     status: str | None = None,
     category: str | None = None,
     category_legacy_value: str | None = None,
@@ -305,6 +314,7 @@ def count_tickets(
         subcategory_id=subcategory_id,
         type_id=type_id,
         priority_id=priority_id,
+        status_id=status_id,
         status=status,
         category=category,
         category_legacy_value=category_legacy_value,
@@ -331,3 +341,13 @@ def update_ticket(session: Session, ticket: Ticket, **changes: object) -> Ticket
     session.add(ticket)
     session.flush()
     return ticket
+
+
+def get_ticket_status_by_legacy_value(session: Session, legacy_value: str) -> TicketStatusConfig | None:
+    statement = (
+        select(TicketStatusConfig)
+        .where(TicketStatusConfig.legacy_value == legacy_value)
+        .order_by(TicketStatusConfig.display_order.asc(), TicketStatusConfig.id.asc())
+        .limit(1)
+    )
+    return session.scalar(statement)

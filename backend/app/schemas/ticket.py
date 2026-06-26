@@ -144,6 +144,9 @@ class TicketResponse(BaseModel):
     priority_weight: int | None = None
     severity: TicketSeverity
     status: TicketStatus
+    status_id: int | None = None
+    status_name: str | None = None
+    status_color: str | None = None
     operational_impact: str | None
     fuel_nozzles_stopped: int | None
     estimated_daily_loss: Decimal | None
@@ -196,6 +199,9 @@ class TicketDetailResponse(BaseModel):
     priority_weight: int | None = None
     severity: TicketSeverity
     status: TicketStatus
+    status_id: int | None = None
+    status_name: str | None = None
+    status_color: str | None = None
     operational_impact: str | None
     fuel_nozzles_stopped: int | None
     estimated_daily_loss: Decimal | None
@@ -235,6 +241,7 @@ class TicketListParams(PageParams):
     subcategory_id: int | None = Field(default=None, ge=1)
     type_id: int | None = Field(default=None, ge=1)
     priority_id: int | None = Field(default=None, ge=1)
+    status_id: int | None = Field(default=None, ge=1)
     status: TicketStatus | None = None
     category: TicketCategory | None = None
     priority: PriorityLevel | None = None
@@ -361,3 +368,33 @@ class TicketCloseRequest(BaseModel):
         if not normalized:
             raise ValueError("Close comment is required.")
         return normalized
+
+
+class TicketTransitionRequest(BaseModel):
+    to_status_id: int = Field(ge=1)
+    comment: str | None = None
+
+    @field_validator("comment")
+    @classmethod
+    def strip_comment(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        return normalized or None
+
+
+class TicketAvailableTransitionResponse(BaseModel):
+    transition_id: int
+    from_status_id: int
+    to_status_id: int
+    to_status_name: str
+    to_status_color: str
+    requires_comment: bool
+    requires_attachment: bool
+
+
+class TicketAvailableTransitionsResponse(BaseModel):
+    ticket_id: int
+    current_status_id: int | None = None
+    current_status_name: str
+    transitions: list[TicketAvailableTransitionResponse]

@@ -21,6 +21,7 @@ from app.models.ticket_category_type import TicketCategoryTypeLink
 from app.models.ticket_custom_field import TicketCustomField, TicketCustomFieldValue
 from app.models.ticket_history import TicketHistory
 from app.models.ticket_priority import TicketPriorityConfig
+from app.models.ticket_status import TicketStatusConfig, TicketStatusTransitionConfig
 from app.models.ticket_subcategory import TicketSubcategoryConfig
 from app.models.ticket_type import TicketTypeConfig
 from app.models.unit import Unit
@@ -46,6 +47,8 @@ __all__ = [
     "TicketCategory",
     "TicketHistory",
     "TicketPriorityConfig",
+    "TicketStatusConfig",
+    "TicketStatusTransitionConfig",
     "TicketSubcategoryConfig",
     "TicketSeverity",
     "TicketStatus",

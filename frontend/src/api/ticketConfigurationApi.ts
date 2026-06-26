@@ -12,6 +12,13 @@ import type {
   TicketPriorityItem,
   TicketPriorityListResponse,
   TicketPriorityPayload,
+  TicketStatusItem,
+  TicketStatusListResponse,
+  TicketStatusPayload,
+  TicketStatusTransitionFilters,
+  TicketStatusTransitionItem,
+  TicketStatusTransitionListResponse,
+  TicketStatusTransitionPayload,
   TicketSubcategoryFilters,
   TicketSubcategoryItem,
   TicketSubcategoryListResponse,
@@ -148,6 +155,60 @@ export function createTicketPriority(token: string, payload: TicketPriorityPaylo
 
 export function updateTicketPriority(token: string, priorityId: number, payload: Partial<TicketPriorityPayload>) {
   return requestJson<TicketPriorityItem>(`/admin/ticket-priorities/${priorityId}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listAdminTicketStatuses(token: string, filters: TicketConfigurationFilters) {
+  return requestJson<TicketStatusListResponse>(
+    `/admin/ticket-statuses${buildQuery(filters)}`,
+    { headers: authHeaders(token) },
+  );
+}
+
+export function listTicketStatuses(filters: TicketConfigurationFilters = {}) {
+  return requestJson<TicketStatusListResponse>(`/ticket-statuses${buildQuery(filters)}`);
+}
+
+export function createTicketStatus(token: string, payload: TicketStatusPayload) {
+  return requestJson<TicketStatusItem>("/admin/ticket-statuses", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateTicketStatus(token: string, statusId: number, payload: Partial<TicketStatusPayload>) {
+  return requestJson<TicketStatusItem>(`/admin/ticket-statuses/${statusId}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listAdminTicketStatusTransitions(token: string, filters: TicketStatusTransitionFilters) {
+  return requestJson<TicketStatusTransitionListResponse>(
+    `/admin/ticket-status-transitions${buildQuery(filters)}`,
+    { headers: authHeaders(token) },
+  );
+}
+
+export function createTicketStatusTransition(token: string, payload: TicketStatusTransitionPayload) {
+  return requestJson<TicketStatusTransitionItem>("/admin/ticket-status-transitions", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateTicketStatusTransition(
+  token: string,
+  transitionId: number,
+  payload: Partial<TicketStatusTransitionPayload>,
+) {
+  return requestJson<TicketStatusTransitionItem>(`/admin/ticket-status-transitions/${transitionId}`, {
     method: "PATCH",
     headers: authHeaders(token),
     body: JSON.stringify(payload),

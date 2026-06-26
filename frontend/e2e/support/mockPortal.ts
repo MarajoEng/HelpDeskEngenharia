@@ -10,6 +10,10 @@ const currentUser = {
   unit_id: null,
 };
 
+export async function resetBrowserState(page: Page) {
+  await page.context().clearCookies();
+}
+
 const units = [
   {
     id: 1,
@@ -143,6 +147,56 @@ const priorities = [
   },
 ];
 
+const statuses = [
+  {
+    id: 1,
+    name: "Aberto",
+    legacy_value: "open",
+    description: "Chamado aberto.",
+    color: "#2563eb",
+    is_initial: true,
+    is_final: false,
+    pauses_sla: false,
+    allows_reopen: false,
+    is_active: true,
+    display_order: 10,
+    created_at: "2026-06-25T12:00:00Z",
+    updated_at: "2026-06-25T12:00:00Z",
+  },
+  {
+    id: 2,
+    name: "Triagem",
+    legacy_value: "triage",
+    description: "Chamado em triagem.",
+    color: "#7c3aed",
+    is_initial: false,
+    is_final: false,
+    pauses_sla: false,
+    allows_reopen: false,
+    is_active: true,
+    display_order: 20,
+    created_at: "2026-06-25T12:00:00Z",
+    updated_at: "2026-06-25T12:00:00Z",
+  },
+];
+
+const statusTransitions = [
+  {
+    id: 1,
+    from_status_id: 1,
+    from_status_name: "Aberto",
+    to_status_id: 2,
+    to_status_name: "Triagem",
+    to_status_color: "#7c3aed",
+    requires_comment: true,
+    requires_attachment: false,
+    allowed_roles_json: ["admin", "engineering"],
+    is_active: true,
+    created_at: "2026-06-25T12:00:00Z",
+    updated_at: "2026-06-25T12:00:00Z",
+  },
+];
+
 const customFields = [
   {
     id: 101,
@@ -187,6 +241,9 @@ const ticketSummary = {
   priority_name: "Alta",
   severity: "critical",
   status: "open",
+  status_id: 1,
+  status_name: "Aberto",
+  status_color: "#2563eb",
   operational_impact: "Pista 2 parada.",
   fuel_nozzles_stopped: 2,
   estimated_daily_loss: "1500.00",
@@ -343,15 +400,30 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
 }
 
 export async function mockAuthenticatedPortal(page: Page) {
+  await resetBrowserState(page);
   await page.addInitScript((token: string) => {
     window.localStorage.setItem("portal_chamados_auth_token", token);
   }, authToken);
 
+  await mockPortalApi(page);
+}
+
+export async function mockPortalLogin(page: Page) {
+  await resetBrowserState(page);
+  await mockPortalApi(page);
+}
+
+async function mockPortalApi(page: Page) {
   await page.route("http://127.0.0.1:8000/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const { pathname } = url;
     const method = request.method();
+
+    if (pathname === "/auth/login" && method === "POST") {
+      await fulfillJson(route, { access_token: authToken, token_type: "bearer" });
+      return;
+    }
 
     if (pathname === "/auth/me") {
       await fulfillJson(route, currentUser);
@@ -386,6 +458,9 @@ export async function mockAuthenticatedPortal(page: Page) {
         subcategory_id: payload.subcategory_id ?? ticketSummary.subcategory_id,
         type_id: payload.type_id ?? ticketSummary.type_id,
         priority_id: payload.priority_id ?? ticketSummary.priority_id,
+        status_id: ticketSummary.status_id,
+        status_name: ticketSummary.status_name,
+        status_color: ticketSummary.status_color,
       }, 201);
       return;
     }
@@ -407,6 +482,49 @@ export async function mockAuthenticatedPortal(page: Page) {
         ...ticketDetail,
         id: pathname === "/tickets/99" ? 99 : 1,
         ticket_number: pathname === "/tickets/99" ? "ENG-20260625-000099" : ticketDetail.ticket_number,
+      });
+      return;
+    }
+
+    if (pathname.match(/^\/tickets\/\d+\/available-transitions$/)) {
+      await fulfillJson(route, {
+        ticket_id: 1,
+        current_status_id: 1,
+        current_status_name: "Aberto",
+        transitions: statusTransitions.map((transition) => ({
+          transition_id: transition.id,
+          from_status_id: transition.from_status_id,
+          to_status_id: transition.to_status_id,
+          to_status_name: transition.to_status_name,
+          to_status_color: transition.to_status_color,
+          requires_comment: transition.requires_comment,
+          requires_attachment: transition.requires_attachment,
+        })),
+      });
+      return;
+    }
+
+    if (pathname.match(/^\/tickets\/\d+\/transition$/) && method === "PATCH") {
+      await fulfillJson(route, {
+        ...ticketDetail,
+        status: "triage",
+        status_id: 2,
+        status_name: "Triagem",
+        status_color: "#7c3aed",
+      });
+      return;
+    }
+
+    if (pathname.match(/^\/tickets\/\d+\/attachments$/)) {
+      await fulfillJson(route, pageResponse([]));
+      return;
+    }
+
+    if (pathname.match(/^\/attachments\/\d+\/download$/)) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/octet-stream",
+        body: "",
       });
       return;
     }
@@ -462,6 +580,11 @@ export async function mockAuthenticatedPortal(page: Page) {
       return;
     }
 
+    if (pathname === "/ticket-statuses") {
+      await fulfillJson(route, pageResponse(statuses));
+      return;
+    }
+
     if (pathname === "/admin/ticket-categories") {
       await fulfillJson(route, pageResponse(categories));
       return;
@@ -479,6 +602,38 @@ export async function mockAuthenticatedPortal(page: Page) {
 
     if (pathname === "/admin/ticket-priorities") {
       await fulfillJson(route, pageResponse(priorities));
+      return;
+    }
+
+    if (pathname === "/admin/ticket-statuses") {
+      if (method === "POST") {
+        const payload = request.postDataJSON() as Record<string, unknown>;
+        await fulfillJson(route, { ...statuses[0], ...payload, id: 99 }, 201);
+        return;
+      }
+      await fulfillJson(route, pageResponse(statuses));
+      return;
+    }
+
+    if (pathname.match(/^\/admin\/ticket-statuses\/\d+$/) && method === "PATCH") {
+      const payload = request.postDataJSON() as Record<string, unknown>;
+      await fulfillJson(route, { ...statuses[0], ...payload });
+      return;
+    }
+
+    if (pathname === "/admin/ticket-status-transitions") {
+      if (method === "POST") {
+        const payload = request.postDataJSON() as Record<string, unknown>;
+        await fulfillJson(route, { ...statusTransitions[0], ...payload, id: 99 }, 201);
+        return;
+      }
+      await fulfillJson(route, pageResponse(statusTransitions));
+      return;
+    }
+
+    if (pathname.match(/^\/admin\/ticket-status-transitions\/\d+$/) && method === "PATCH") {
+      const payload = request.postDataJSON() as Record<string, unknown>;
+      await fulfillJson(route, { ...statusTransitions[0], ...payload });
       return;
     }
 

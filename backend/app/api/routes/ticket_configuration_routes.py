@@ -23,6 +23,15 @@ from app.schemas import (
     TicketPriorityListResponse,
     TicketPriorityResponse,
     TicketPriorityUpdate,
+    TicketStatusCreate,
+    TicketStatusListResponse,
+    TicketStatusResponse,
+    TicketStatusTransitionCreate,
+    TicketStatusTransitionListParams,
+    TicketStatusTransitionListResponse,
+    TicketStatusTransitionResponse,
+    TicketStatusTransitionUpdate,
+    TicketStatusUpdate,
     TicketSubcategoryCreate,
     TicketSubcategoryListParams,
     TicketSubcategoryListResponse,
@@ -39,20 +48,27 @@ from app.services.ticket_configuration_service import (
     create_ticket_category_record,
     create_ticket_custom_field_record,
     create_ticket_priority_record,
+    create_ticket_status_record,
+    create_ticket_status_transition_record,
     create_ticket_subcategory_record,
     create_ticket_type_record,
     list_admin_ticket_categories,
     list_admin_ticket_custom_fields,
     list_admin_ticket_priorities,
+    list_admin_ticket_status_transitions,
+    list_admin_ticket_statuses,
     list_admin_ticket_subcategories,
     list_admin_ticket_types,
     list_public_ticket_categories,
     list_public_ticket_priorities,
+    list_public_ticket_statuses,
     list_public_ticket_subcategories,
     list_public_ticket_types,
     update_ticket_category_record,
     update_ticket_custom_field_record,
     update_ticket_priority_record,
+    update_ticket_status_record,
+    update_ticket_status_transition_record,
     update_ticket_subcategory_record,
     update_ticket_type_record,
 )
@@ -119,6 +135,20 @@ def _build_custom_field_params(
     )
 
 
+def _build_transition_params(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    from_status_id: int | None = Query(default=None, ge=1),
+    is_active: bool | None = Query(default=None),
+) -> TicketStatusTransitionListParams:
+    return TicketStatusTransitionListParams(
+        page=page,
+        page_size=page_size,
+        from_status_id=from_status_id,
+        is_active=is_active,
+    )
+
+
 @router.get("/ticket-categories", response_model=TicketCategoryListResponse)
 def read_ticket_categories(
     params: Annotated[TicketConfigurationPageParams, Depends(_build_page_params)],
@@ -160,6 +190,17 @@ def read_ticket_priorities(
 ) -> TicketPriorityListResponse:
     try:
         return list_public_ticket_priorities(session, params)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.get("/ticket-statuses", response_model=TicketStatusListResponse)
+def read_ticket_statuses(
+    params: Annotated[TicketConfigurationPageParams, Depends(_build_page_params)],
+    session: Session = Depends(get_db_session),
+) -> TicketStatusListResponse:
+    try:
+        return list_public_ticket_statuses(session, params)
     except ServiceError as error:
         _raise_service_error(error)
 
@@ -363,6 +404,136 @@ def read_admin_ticket_priorities(
         return list_admin_ticket_priorities(session, params, current_user)
     except ServiceError as error:
         _raise_service_error(error)
+
+
+@router.get("/admin/ticket-statuses", response_model=TicketStatusListResponse)
+def read_admin_ticket_statuses(
+    params: Annotated[TicketConfigurationPageParams, Depends(_build_page_params)],
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketStatusListResponse:
+    try:
+        return list_admin_ticket_statuses(session, params, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.post("/admin/ticket-statuses", response_model=TicketStatusResponse, status_code=status.HTTP_201_CREATED)
+def create_ticket_status(
+    payload: TicketStatusCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketStatusResponse:
+    try:
+        ticket_status = create_ticket_status_record(session, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+    log_action(
+        session,
+        actor_user=current_user,
+        action="ticket_status_created",
+        entity_type="ticket_status",
+        entity_id=ticket_status.id,
+        request=request,
+        metadata={"name": ticket_status.name},
+    )
+    session.commit()
+    return ticket_status
+
+
+@router.patch("/admin/ticket-statuses/{status_id}", response_model=TicketStatusResponse)
+def patch_ticket_status(
+    status_id: int,
+    payload: TicketStatusUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketStatusResponse:
+    try:
+        ticket_status = update_ticket_status_record(session, status_id, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+    log_action(
+        session,
+        actor_user=current_user,
+        action="ticket_status_updated",
+        entity_type="ticket_status",
+        entity_id=ticket_status.id,
+        request=request,
+        metadata={"name": ticket_status.name},
+    )
+    session.commit()
+    return ticket_status
+
+
+@router.get("/admin/ticket-status-transitions", response_model=TicketStatusTransitionListResponse)
+def read_admin_ticket_status_transitions(
+    params: Annotated[TicketStatusTransitionListParams, Depends(_build_transition_params)],
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketStatusTransitionListResponse:
+    try:
+        return list_admin_ticket_status_transitions(session, params, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+
+@router.post(
+    "/admin/ticket-status-transitions",
+    response_model=TicketStatusTransitionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_ticket_status_transition(
+    payload: TicketStatusTransitionCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketStatusTransitionResponse:
+    try:
+        transition = create_ticket_status_transition_record(session, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+    log_action(
+        session,
+        actor_user=current_user,
+        action="ticket_status_transition_created",
+        entity_type="ticket_status_transition",
+        entity_id=transition.id,
+        request=request,
+        metadata={"from_status_id": transition.from_status_id, "to_status_id": transition.to_status_id},
+    )
+    session.commit()
+    return transition
+
+
+@router.patch("/admin/ticket-status-transitions/{transition_id}", response_model=TicketStatusTransitionResponse)
+def patch_ticket_status_transition(
+    transition_id: int,
+    payload: TicketStatusTransitionUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db_session),
+) -> TicketStatusTransitionResponse:
+    try:
+        transition = update_ticket_status_transition_record(session, transition_id, payload, current_user)
+    except ServiceError as error:
+        _raise_service_error(error)
+
+    log_action(
+        session,
+        actor_user=current_user,
+        action="ticket_status_transition_updated",
+        entity_type="ticket_status_transition",
+        entity_id=transition.id,
+        request=request,
+        metadata={"from_status_id": transition.from_status_id, "to_status_id": transition.to_status_id},
+    )
+    session.commit()
+    return transition
 
 
 @router.post("/admin/ticket-priorities", response_model=TicketPriorityResponse, status_code=status.HTTP_201_CREATED)

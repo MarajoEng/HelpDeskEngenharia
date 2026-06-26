@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import {
   listTicketCategories,
   listTicketPriorities,
+  listTicketStatuses,
   listTicketTypes,
 } from "../api/ticketConfigurationApi";
 import { listTickets } from "../api/ticketApi";
@@ -21,7 +22,7 @@ import StatusBadge from "../components/ui/StatusBadge";
 import Table from "../components/ui/Table";
 import { useAuth } from "../hooks/useAuth";
 import type { Ticket, TicketFilters, TicketSeverity, TicketStatus } from "../types/ticket";
-import type { TicketCategoryItem, TicketPriorityItem, TicketTypeItem } from "../types/ticketConfiguration";
+import type { TicketCategoryItem, TicketPriorityItem, TicketStatusItem, TicketTypeItem } from "../types/ticketConfiguration";
 import type { Unit } from "../types/unit";
 import { formatDate, formatMoney } from "../utils/formatters";
 import { getErrorMessage, LIST_EMPTY_MESSAGES } from "../utils/messages";
@@ -31,6 +32,7 @@ const initialFilters: TicketFilters = {
   page_size: 20,
   unit_id: "",
   status: "",
+  status_id: "",
   category_id: "",
   type_id: "",
   priority_id: "",
@@ -43,7 +45,7 @@ const initialFilters: TicketFilters = {
   max_estimated_cost: "",
 };
 
-const statusOptions: Array<{ value: TicketStatus; label: string }> = [
+const legacyStatusOptions: Array<{ value: TicketStatus; label: string }> = [
   { value: "open", label: "Aberto" },
   { value: "triage", label: "Triagem" },
   { value: "waiting_approval", label: "Ag. aprovacao" },
@@ -86,6 +88,7 @@ export default function TicketsPage() {
   const [categories, setCategories] = useState<TicketCategoryItem[]>([]);
   const [ticketTypes, setTicketTypes] = useState<TicketTypeItem[]>([]);
   const [priorities, setPriorities] = useState<TicketPriorityItem[]>([]);
+  const [statuses, setStatuses] = useState<TicketStatusItem[]>([]);
   const [data, setData] = useState<{ items: Ticket[]; total: number; page: number; page_size: number; pages: number }>({
     items: [],
     total: 0,
@@ -112,8 +115,9 @@ export default function TicketsPage() {
       listTicketCategories({ page: 1, page_size: 100, sort: "display_order_asc" }),
       listTicketTypes({ page: 1, page_size: 100, sort: "display_order_asc" }),
       listTicketPriorities({ page: 1, page_size: 100, sort: "display_order_asc" }),
+      listTicketStatuses({ page: 1, page_size: 100, sort: "display_order_asc" }),
     ])
-      .then(([categoriesResponse, typesResponse, prioritiesResponse]) => {
+      .then(([categoriesResponse, typesResponse, prioritiesResponse, statusesResponse]) => {
         if (!isActive) {
           return;
         }
@@ -121,6 +125,7 @@ export default function TicketsPage() {
         setCategories(categoriesResponse.items);
         setTicketTypes(typesResponse.items);
         setPriorities(prioritiesResponse.items);
+        setStatuses(statusesResponse.items);
       })
       .catch((error: unknown) => {
         if (!isActive) {
@@ -130,6 +135,7 @@ export default function TicketsPage() {
         setCategories([]);
         setTicketTypes([]);
         setPriorities([]);
+        setStatuses([]);
         setFilterOptionsError(getErrorMessage(error, "Nao foi possivel carregar os filtros configuraveis."));
       })
       .finally(() => {
@@ -185,6 +191,7 @@ export default function TicketsPage() {
     filters.search,
     filters.severity,
     filters.status,
+    filters.status_id,
     filters.type_id,
     filters.unit_id,
     filters.only_late,
@@ -306,12 +313,33 @@ export default function TicketsPage() {
             <select
               id="status-filter"
               className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              value={filters.status || ""}
-              onChange={(e) => setFilter("status", (e.target.value as TicketStatus | "") || "")}
+              value={statuses.length > 0 ? String(filters.status_id ?? "") : filters.status || ""}
+              onChange={(e) => {
+                if (statuses.length > 0) {
+                  const selectedStatus = statuses.find((status) => String(status.id) === e.target.value);
+                  setFilters((current) => ({
+                    ...current,
+                    page: 1,
+                    status_id: e.target.value === "" ? "" : Number(e.target.value),
+                    status: selectedStatus?.legacy_value ? (selectedStatus.legacy_value as TicketStatus) : "",
+                  }));
+                  return;
+                }
+                setFilters((current) => ({
+                  ...current,
+                  page: 1,
+                  status_id: "",
+                  status: (e.target.value as TicketStatus | "") || "",
+                }));
+              }}
             >
-              <option value="">Todos</option>
-              {statusOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+              <option value="">{isLoadingFilterOptions ? "Carregando..." : "Todos"}</option>
+              {(statuses.length > 0 ? statuses : legacyStatusOptions).map((option) => (
+                "id" in option ? (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ) : (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                )
               ))}
             </select>
           </div>
@@ -512,7 +540,7 @@ export default function TicketsPage() {
                           <span className="block truncate">{ticket.title}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={ticket.status} />
+                          <StatusBadge status={ticket.status} label={ticket.status_name} color={ticket.status_color} />
                         </td>
                         <td className="px-4 py-3">
                           <PriorityBadge priority={ticket.priority} />

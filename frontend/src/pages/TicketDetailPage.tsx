@@ -25,9 +25,16 @@ import {
   statusClass,
   severityClass,
 } from "../components/tickets/ticketUi";
-import { getTicketById } from "../api/ticketApi";
+import { getTicketAvailableTransitions, getTicketById, transitionTicketStatus } from "../api/ticketApi";
 import { useAuth } from "../hooks/useAuth";
-import type { TicketApproval, TicketDetail, TicketHistory, SlaStatus, TicketStatus } from "../types/ticket";
+import type {
+  TicketApproval,
+  TicketAvailableTransitionsResponse,
+  TicketDetail,
+  TicketHistory,
+  SlaStatus,
+  TicketStatus,
+} from "../types/ticket";
 
 const CATEGORY_LABELS: Record<string, string> = {
   fuel_pump: "Bomba de combustivel",
@@ -242,6 +249,9 @@ export default function TicketDetailPage() {
   const [isProgressOpen, setIsProgressOpen] = useState(false);
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isCloseOpen, setIsCloseOpen] = useState(false);
+  const [availableTransitions, setAvailableTransitions] = useState<TicketAvailableTransitionsResponse | null>(null);
+  const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -270,6 +280,44 @@ export default function TicketDetailPage() {
       isActive = false;
     };
   }, [ticketId, token, reloadKey]);
+
+  useEffect(() => {
+    if (!token || !ticketId) return;
+
+    let isActive = true;
+    getTicketAvailableTransitions(token, Number(ticketId))
+      .then((response) => {
+        if (isActive) setAvailableTransitions(response);
+      })
+      .catch(() => {
+        if (isActive) setAvailableTransitions(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [ticketId, token, reloadKey]);
+
+  function handleConfiguredTransition(toStatusId: number, requiresComment: boolean) {
+    if (!token || !ticket) return;
+    const comment = requiresComment ? window.prompt("Informe um comentario para esta transicao.") : null;
+    if (requiresComment && !comment?.trim()) return;
+
+    setIsTransitioning(true);
+    setTransitionError(null);
+    transitionTicketStatus(token, ticket.id, {
+      to_status_id: toStatusId,
+      comment: comment?.trim() || null,
+    })
+      .then((response) => {
+        setTicket(response);
+        setReloadKey((current) => current + 1);
+      })
+      .catch((error: unknown) => {
+        setTransitionError(error instanceof Error ? error.message : "Nao foi possivel alterar o status.");
+      })
+      .finally(() => setIsTransitioning(false));
+  }
 
   const pendingApproval = useMemo(() => {
     if (!ticket) return null;
@@ -411,6 +459,9 @@ export default function TicketDetailPage() {
           Anexe uma evidencia de conclusao antes de resolver.
         </div>
       ) : null}
+      {transitionError ? (
+        <div className="state-card state-card--error">{transitionError}</div>
+      ) : null}
 
       <section className="panel panel--stack">
         <div className="ticket-summary">
@@ -421,11 +472,48 @@ export default function TicketDetailPage() {
             </p>
           </div>
           <div className="ticket-summary__meta">
-            <span className={statusClass(ticket.status)}>{STATUS_LABELS[ticket.status]}</span>
+            <span
+              className={statusClass(ticket.status)}
+              style={ticket.status_color ? { color: ticket.status_color } : undefined}
+            >
+              {ticket.status_name ?? STATUS_LABELS[ticket.status]}
+            </span>
             <span className={priorityClass(ticket.priority)}>{PRIORITY_LABELS[ticket.priority]}</span>
             <span className={severityClass(ticket.severity)}>{SEVERITY_LABELS[ticket.severity]}</span>
           </div>
         </div>
+
+        {availableTransitions && availableTransitions.transitions.length > 0 ? (
+          <div>
+            <h3
+              style={{
+                margin: "0 0 12px",
+                fontSize: "0.95rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--muted)",
+              }}
+            >
+              Fluxo disponivel
+            </h3>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              {availableTransitions.transitions.map((transition) => (
+                <button
+                  key={transition.transition_id}
+                  type="button"
+                  className="button-secondary"
+                  disabled={isTransitioning}
+                  onClick={() =>
+                    handleConfiguredTransition(transition.to_status_id, transition.requires_comment)
+                  }
+                >
+                  {transition.to_status_name}
+                  {transition.requires_attachment ? " · anexo" : ""}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div>
           <h3
